@@ -217,7 +217,7 @@ class Board():
 			raise Exception("EMPTY")
 
 		if colour != None and piece.colour != colour:
-			raise Exception("COLOUR")
+			raise Exception("COLOUR " + str(piece.colour) + " not " + str(colour))
 
 		# I'm not quite sure why I made this return a string, but screw logical design
 		return str(x) + " " + str(y) + " " + str(piece.select()) + " " + str(piece.current_type)
@@ -655,6 +655,126 @@ class AgentRandom(Player):
 	def quit(self, final_result):
 		pass
 # --- player.py --- #
+# +++ network.py +++ #
+import socket
+
+class Network():
+	def __init__(self, colour, address = None):
+		self.socket = socket.socket()
+
+		if colour == "white":
+			self.port = 4563
+		else:
+			self.port = 4564
+
+		self.src = None
+
+		if address == None:
+			self.host = 'localhost' #socket.gethostname()
+			self.socket.bind((self.host, self.port))
+			self.socket.listen(5)	
+
+			self.src, self.address = self.socket.accept()
+		else:
+			self.host = address
+			self.socket.connect(('localhost', self.port))
+			self.src = self.socket
+
+	def getline(self):
+		s = self.src.recv(1)
+		while s[len(s)-1] != '\n':
+			s += self.src.recv(1)
+		return s
+		
+
+		
+
+class NetworkSender(Player,Network):
+	def __init__(self, base_player, board, address = None):
+		self.base_player = base_player
+		Player.__init__(self, base_player.name, base_player.colour)
+		Network.__init__(self, base_player.colour, address)
+
+		self.board = board
+
+	def select(self):
+		[x,y] = self.base_player.select()
+		choice = self.board.grid[x][y]
+		s = str(x) + " " + str(y)
+		print str(self) + ".select sends " + s
+		self.src.send(s + "\n")
+		return [x,y]
+
+	def get_move(self):
+		[x,y] = self.base_player.get_move()
+		s = str(x) + " " + str(y)
+		print str(self) + ".get_move sends " + s
+		self.src.send(s + "\n")
+		return [x,y]
+
+	def update(self, s):
+		self.base_player.update(s)
+		s = s.split(" ")
+		[x,y] = map(int, s[0:2])
+		selected = self.board.grid[x][y]
+		if selected != None and selected.colour == self.colour and len(s) > 2 and not "->" in s:
+			s = " ".join(s[0:3])
+			for i in range(2):
+				if selected.types_revealed[i] == True:
+					s += " " + str(selected.types[i])
+				else:
+					s += " unknown"
+			print str(self) + ".update sends " + s
+			self.src.send(s + "\n")
+				
+
+	def quit(self, final_result):
+		self.base_player.quit(final_result)
+		self.src.close()
+
+class NetworkReceiver(Player,Network):
+	def __init__(self, colour, board, address=None):
+		
+		Player.__init__(self, address, colour)
+
+		Network.__init__(self, colour, address)
+
+		self.board = board
+			
+
+	def select(self):
+		s = self.getline().strip(" \r\n")
+		return map(int,s.split(" "))
+	def get_move(self):
+		s = self.getline().strip(" \r\n")
+		print str(self) + ".get_move gets " + s
+		return map(int, s.split(" "))
+
+	def update(self, result):
+		
+		result = result.split(" ")
+		[x,y] = map(int, result[0:2])
+		selected = self.board.grid[x][y]
+		if selected != None and selected.colour == self.colour and len(result) > 2 and not "->" in result:
+			s = self.getline().strip(" \r\n")
+			print str(self) + ".update - receives " + str(s)
+			s = s.split(" ")
+			selected.choice = int(s[2])
+			for i in range(2):
+				selected.types[i] = str(s[3+i])
+				if s[3+i] == "unknown":
+					selected.types_revealed[i] = False
+				else:
+					selected.types_revealed[i] = True
+			selected.current_type = selected.types[selected.choice]	
+		else:
+			print str(self) + ".update - ignore result " + str(result)			
+		
+
+	def quit(self, final_result):
+		self.src.close()
+	
+# --- network.py --- #
 # +++ thread_util.py +++ #
 import threading
 
@@ -693,12 +813,18 @@ class GameThread(StoppableThread):
 			
 			for p in self.players:
 				with self.lock:
-					self.state["turn"] = p # "turn" contains the player who's turn it is
+					if isinstance(p, NetworkSender):
+						self.state["turn"] = p.base_player # "turn" contains the player who's turn it is
+					else:
+						self.state["turn"] = p
 				#try:
 				if True:
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
 						break
+
+					
+						
 
 					result = self.board.select(x, y, colour = p.colour)				
 					for p2 in self.players:
@@ -1111,35 +1237,40 @@ def main(argv):
 	global graphics
 
 	# Magical argument parsing goes here
-	if len(argv) == 1:
-		players = [HumanPlayer("saruman", "white"), AgentRandom("sabbath", "black")]
-	elif len(argv) == 2:
-		players = [AgentPlayer(argv[1], "white"), HumanPlayer("shadow", "black"), ]
-	elif len(argv) == 3:
-		players = [AgentPlayer(argv[1], "white"), AgentPlayer(argv[2], "black")]
+#	if len(argv) == 1:
+#		players = [HumanPlayer("saruman", "white"), AgentRandom("sabbath", "black")]
+#	elif len(argv) == 2:
+#		players = [AgentPlayer(argv[1], "white"), HumanPlayer("shadow", "black"), ]
+#	elif len(argv) == 3:
+#		players = [AgentPlayer(argv[1], "white"), AgentPlayer(argv[2], "black")]
 
-	# Construct the board!
+
 	board = Board(style = "quantum")
+	# Construct the board!
+	if len(argv) == 1:
+		players = [NetworkSender(HumanPlayer("saruman", "white"), board), NetworkReceiver("black", board, 'localhost')]
+		
+	else:
+		players = [NetworkReceiver("white", board, 'localhost'), NetworkSender(HumanPlayer("sabbath", "black"), board)]
+		
+	
+	
+
+	graphics = GraphicsThread(board, grid_sz = [64,64]) # Construct a GraphicsThread! I KNOW WHAT I'M DOING! BEAR WITH ME!
+	
+
+
+
 	game = GameThread(board, players) # Construct a GameThread! Make it global! Damn the consequences!
-	#try:
-	if True:
-		graphics = GraphicsThread(board, grid_sz = [64,64]) # Construct a GraphicsThread! I KNOW WHAT I'M DOING! BEAR WITH ME!
-		game.start() # This runs in a new thread
-	#except NameError:
-	#	print "Run game in main thread"
-	#	game.run() # Run game in the main thread (no need for joining)
-	#	return game.error
-	#except Exception, e:
-	#	raise e
-	#else:
-	#	print "Normal"
-		graphics.run()
-		game.join()
-		return game.error + graphics.error
+	game.start() # This runs in a new thread
+
+	graphics.run()
+	game.join()
+	return game.error + graphics.error
 
 
 # This is how python does a main() function...
 if __name__ == "__main__":
 	sys.exit(main(sys.argv))
 # --- main.py --- #
-# EOF - created from update.sh on Wed Jan 23 22:01:52 WST 2013
+# EOF - created from update.sh on Thu Jan 24 03:04:38 WST 2013

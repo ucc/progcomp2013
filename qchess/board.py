@@ -124,7 +124,7 @@ class Board():
 			raise Exception("EMPTY")
 
 		if colour != None and piece.colour != colour:
-			raise Exception("COLOUR")
+			raise Exception("COLOUR " + str(piece.colour) + " not " + str(colour))
 
 		# I'm not quite sure why I made this return a string, but screw logical design
 		return str(x) + " " + str(y) + " " + str(piece.select()) + " " + str(piece.current_type)

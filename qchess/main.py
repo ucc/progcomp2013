@@ -30,31 +30,36 @@ def main(argv):
 	global graphics
 
 	# Magical argument parsing goes here
-	if len(argv) == 1:
-		players = [HumanPlayer("saruman", "white"), AgentRandom("sabbath", "black")]
-	elif len(argv) == 2:
-		players = [AgentPlayer(argv[1], "white"), HumanPlayer("shadow", "black"), ]
-	elif len(argv) == 3:
-		players = [AgentPlayer(argv[1], "white"), AgentPlayer(argv[2], "black")]
+#	if len(argv) == 1:
+#		players = [HumanPlayer("saruman", "white"), AgentRandom("sabbath", "black")]
+#	elif len(argv) == 2:
+#		players = [AgentPlayer(argv[1], "white"), HumanPlayer("shadow", "black"), ]
+#	elif len(argv) == 3:
+#		players = [AgentPlayer(argv[1], "white"), AgentPlayer(argv[2], "black")]
 
-	# Construct the board!
+
 	board = Board(style = "quantum")
+	# Construct the board!
+	if len(argv) == 1:
+		players = [NetworkSender(HumanPlayer("saruman", "white"), board), NetworkReceiver("black", board, 'localhost')]
+		
+	else:
+		players = [NetworkReceiver("white", board, 'localhost'), NetworkSender(HumanPlayer("sabbath", "black"), board)]
+		
+	
+	
+
+	graphics = GraphicsThread(board, grid_sz = [64,64]) # Construct a GraphicsThread! I KNOW WHAT I'M DOING! BEAR WITH ME!
+	
+
+
+
 	game = GameThread(board, players) # Construct a GameThread! Make it global! Damn the consequences!
-	#try:
-	if True:
-		graphics = GraphicsThread(board, grid_sz = [64,64]) # Construct a GraphicsThread! I KNOW WHAT I'M DOING! BEAR WITH ME!
-		game.start() # This runs in a new thread
-	#except NameError:
-	#	print "Run game in main thread"
-	#	game.run() # Run game in the main thread (no need for joining)
-	#	return game.error
-	#except Exception, e:
-	#	raise e
-	#else:
-	#	print "Normal"
-		graphics.run()
-		game.join()
-		return game.error + graphics.error
+	game.start() # This runs in a new thread
+
+	graphics.run()
+	game.join()
+	return game.error + graphics.error
 
 
 # This is how python does a main() function...

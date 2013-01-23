@@ -18,12 +18,18 @@ class GameThread(StoppableThread):
 			
 			for p in self.players:
 				with self.lock:
-					self.state["turn"] = p # "turn" contains the player who's turn it is
+					if isinstance(p, NetworkSender):
+						self.state["turn"] = p.base_player # "turn" contains the player who's turn it is
+					else:
+						self.state["turn"] = p
 				#try:
 				if True:
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
 						break
+
+					
+						
 
 					result = self.board.select(x, y, colour = p.colour)				
 					for p2 in self.players:

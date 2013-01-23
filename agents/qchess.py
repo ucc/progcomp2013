@@ -1,1 +1,1 @@
-../qchess.py
+../qchess/qchess.py

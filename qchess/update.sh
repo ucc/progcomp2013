@@ -5,7 +5,7 @@
 # (This can't be done with gnu make, because of circular dependency issues)
 
 target=qchess.py
-components="piece.py board.py player.py thread_util.py game.py graphics.py main.py"
+components="piece.py board.py player.py network.py thread_util.py game.py graphics.py main.py"
 # The below seems nicer, but doesn't work because things need to be imported in the right order :(
 #components=$(ls *.py | tr '\t' '\n' | grep -v $target)
 
@@ -20,8 +20,10 @@ target_mod=$(stat -c %Y $target 2>/dev/null)
 if [ $? -ne 0 ]; then
 	merge_required=true
 else
-	merge_required=false
+	merge_required=true
 
+
+	echo "
 	for f in $components; do
 		
 		component_mod=$(stat -c %Y $f 2>/dev/null)
@@ -49,6 +51,8 @@ else
 			merge_required=true
 		fi
 	done
+	" > /dev/null
+
 fi
 
 # If any components were modified more recently than the target, merge the components into the target
