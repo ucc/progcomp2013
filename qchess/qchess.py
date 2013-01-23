@@ -1,4 +1,95 @@
 #!/usr/bin/python -u
+# +++ piece.py +++ #
+import random
+
+# I know using non-abreviated strings is inefficient, but this is python, who cares?
+# Oh, yeah, this stores the number of pieces of each type in a normal chess game
+piece_types = {"pawn" : 8, "bishop" : 2, "knight" : 2, "rook" : 2, "queen" : 1, "king" : 1, "unknown" : 0}
+
+# Class to represent a quantum chess piece
+class Piece():
+	def __init__(self, colour, x, y, types):
+		self.colour = colour # Colour (string) either "white" or "black"
+		self.x = x # x coordinate (0 - 8), none of this fancy 'a', 'b' shit here
+		self.y = y # y coordinate (0 - 8)
+		self.types = types # List of possible types the piece can be (should just be two)
+		self.current_type = "unknown" # Current type
+		self.choice = -1 # Index of the current type in self.types (-1 = unknown type)
+		self.types_revealed = [True, False] # Whether the types are known (by default the first type is always known at game start)
+		
+
+		# 
+		self.last_state = None
+		self.move_pattern = None
+
+		
+
+	def init_from_copy(self, c):
+		self.colour = c.colour
+		self.x = c.x
+		self.y = c.y
+		self.types = c.types[:]
+		self.current_type = c.current_type
+		self.choice = c.choice
+		self.types_revealed = c.types_revealed[:]
+
+		self.last_state = None
+		self.move_pattern = None
+
+	
+
+	# Make a string for the piece (used for debug)
+	def __str__(self):
+		return str(self.current_type) + " " + str(self.types) + " at " + str(self.x) + ","+str(self.y)  
+
+	# Draw the piece in a pygame surface
+	def draw(self, window, grid_sz = [80,80]):
+
+		# First draw the image corresponding to self.current_type
+		img = images[self.colour][self.current_type]
+		rect = img.get_rect()
+		offset = [-rect.width/2,-3*rect.height/4] 
+		window.blit(img, (self.x * grid_sz[0] + grid_sz[0]/2 + offset[0], self.y * grid_sz[1] + grid_sz[1]/2 + offset[1]))
+		
+		
+		# Draw the two possible types underneath the current_type image
+		for i in range(len(self.types)):
+			if self.types_revealed[i] == True:
+				img = small_images[self.colour][self.types[i]]
+			else:
+				img = small_images[self.colour]["unknown"] # If the type hasn't been revealed, show a placeholder
+
+			
+			rect = img.get_rect()
+			offset = [-rect.width/2,-rect.height/2] 
+			
+			if i == 0:
+				target = (self.x * grid_sz[0] + grid_sz[0]/5 + offset[0], self.y * grid_sz[1] + 3*grid_sz[1]/4 + offset[1])				
+			else:
+				target = (self.x * grid_sz[0] + 4*grid_sz[0]/5 + offset[0], self.y * grid_sz[1] + 3*grid_sz[1]/4 + offset[1])				
+				
+			window.blit(img, target) # Blit shit
+	
+	# Collapses the wave function!		
+	def select(self):
+		if self.current_type == "unknown":
+			self.choice = random.randint(0,1)
+			self.current_type = self.types[self.choice]
+			self.types_revealed[self.choice] = True
+		return self.choice
+
+	# Uncollapses (?) the wave function!
+	def deselect(self):
+		#print "Deselect called"
+		if (self.x + self.y) % 2 != 0:
+			if (self.types[0] != self.types[1]) or (self.types_revealed[0] == False or self.types_revealed[1] == False):
+				self.current_type = "unknown"
+				self.choice = -1
+			else:
+				self.choice = 0 # Both the two types are the same
+
+	# The sad moment when you realise that you do not understand anything about a subject you studied for 4 years...
+# --- piece.py --- #
 # +++ board.py +++ #
 [w,h] = [8,8] # Width and height of board(s)
 
@@ -404,6 +495,183 @@ class Board():
 	def on_board(self, x, y):
 		return (x >= 0 and x < w) and (y >= 0 and y < h)
 # --- board.py --- #
+# +++ player.py +++ #
+import subprocess
+
+
+
+# A player who can't play
+class Player():
+	def __init__(self, name, colour):
+		self.name = name
+		self.colour = colour
+
+# Player that runs from another process
+class AgentPlayer(Player):
+	def __init__(self, name, colour):
+		Player.__init__(self, name, colour)
+		self.p = subprocess.Popen(name, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=sys.stderr)
+		try:
+			self.p.stdin.write(colour + "\n")
+		except:
+			raise Exception("UNRESPONSIVE")
+
+	def select(self):
+		
+		#try:
+		self.p.stdin.write("SELECTION?\n")
+		line = self.p.stdout.readline().strip("\r\n ")
+		#except:
+		#	raise Exception("UNRESPONSIVE")
+		try:
+			result = map(int, line.split(" "))
+		except:
+			raise Exception("GIBBERISH \"" + str(line) + "\"")
+		return result
+
+	def update(self, result):
+		#print "Update " + str(result) + " called for AgentPlayer"
+#		try:
+		self.p.stdin.write(result + "\n")
+#		except:
+#		raise Exception("UNRESPONSIVE")
+
+	def get_move(self):
+		
+		try:
+			self.p.stdin.write("MOVE?\n")
+			line = self.p.stdout.readline().strip("\r\n ")
+		except:
+			raise Exception("UNRESPONSIVE")
+		try:
+			result = map(int, line.split(" "))
+		except:
+			raise Exception("GIBBERISH \"" + str(line) + "\"")
+		return result
+
+	def quit(self, final_result):
+		try:
+			self.p.stdin.write("QUIT " + final_result + "\n")
+		except:
+			self.p.kill()
+
+# So you want to be a player here?
+class HumanPlayer(Player):
+	def __init__(self, name, colour):
+		Player.__init__(self, name, colour)
+		
+	# Select your preferred account
+	def select(self):
+		if isinstance(graphics, GraphicsThread):
+			# Basically, we let the graphics thread do some shit and then return that information to the game thread
+			graphics.cond.acquire()
+			# We wait for the graphics thread to select a piece
+			while graphics.stopped() == False and graphics.state["select"] == None:
+				graphics.cond.wait() # The difference between humans and machines is that humans sleep
+			select = graphics.state["select"]
+			
+			
+			graphics.cond.release()
+			if graphics.stopped():
+				return [-1,-1]
+			return [select.x, select.y]
+		else:
+			# Since I don't display the board in this case, I'm not sure why I filled it in...
+			while True:
+				sys.stdout.write("SELECTION?\n")
+				try:
+					p = map(int, sys.stdin.readline().strip("\r\n ").split(" "))
+				except:
+					sys.stderr.write("ILLEGAL GIBBERISH\n")
+					continue
+	# It's your move captain
+	def get_move(self):
+		if isinstance(graphics, GraphicsThread):
+			graphics.cond.acquire()
+			while graphics.stopped() == False and graphics.state["dest"] == None:
+				graphics.cond.wait()
+			graphics.cond.release()
+			
+			return graphics.state["dest"]
+		else:
+
+			while True:
+				sys.stdout.write("MOVE?\n")
+				try:
+					p = map(int, sys.stdin.readline().strip("\r\n ").split(" "))
+				except:
+					sys.stderr.write("ILLEGAL GIBBERISH\n")
+					continue
+
+	# Are you sure you want to quit?
+	def quit(self, final_result):
+		sys.stdout.write("QUIT " + final_result + "\n")
+
+	# Completely useless function
+	def update(self, result):
+		if isinstance(graphics, GraphicsThread):
+			pass
+		else:
+			sys.stdout.write(result + "\n")	
+
+
+# Player that makes random moves
+class AgentRandom(Player):
+	def __init__(self, name, colour):
+		Player.__init__(self, name, colour)
+		self.choice = None
+
+		self.board = Board(style = "agent")
+
+	def select(self):
+		while True:
+			self.choice = self.board.pieces[self.colour][random.randint(0, len(self.board.pieces[self.colour])-1)]
+			all_moves = []
+			# Check that the piece has some possibility to move
+			tmp = self.choice.current_type
+			if tmp == "unknown": # For unknown pieces, try both types
+				for t in self.choice.types:
+					if t == "unknown":
+						continue
+					self.choice.current_type = t
+					all_moves += self.board.possible_moves(self.choice)
+			else:
+				all_moves = self.board.possible_moves(self.choice)
+			self.choice.current_type = tmp
+			if len(all_moves) > 0:
+				break
+		return [self.choice.x, self.choice.y]
+
+	def get_move(self):
+		moves = self.board.possible_moves(self.choice)
+		move = moves[random.randint(0, len(moves)-1)]
+		return move
+
+	def update(self, result):
+		#sys.stderr.write(sys.argv[0] + " : Update board for AgentRandom\n")
+		self.board.update(result)
+		self.board.verify()
+
+	def quit(self, final_result):
+		pass
+# --- player.py --- #
+# +++ thread_util.py +++ #
+import threading
+
+# A thread that can be stopped!
+# Except it can only be stopped if it checks self.stopped() periodically
+# So it can sort of be stopped
+class StoppableThread(threading.Thread):
+	def __init__(self):
+		threading.Thread.__init__(self)
+		self._stop = threading.Event()
+
+	def stop(self):
+		self._stop.set()
+
+	def stopped(self):
+		return self._stop.isSet()
+# --- thread_util.py --- #
 # +++ game.py +++ #
 
 # A thread that runs the game
@@ -874,271 +1142,4 @@ def main(argv):
 if __name__ == "__main__":
 	sys.exit(main(sys.argv))
 # --- main.py --- #
-# +++ piece.py +++ #
-import random
-
-# I know using non-abreviated strings is inefficient, but this is python, who cares?
-# Oh, yeah, this stores the number of pieces of each type in a normal chess game
-piece_types = {"pawn" : 8, "bishop" : 2, "knight" : 2, "rook" : 2, "queen" : 1, "king" : 1, "unknown" : 0}
-
-# Class to represent a quantum chess piece
-class Piece():
-	def __init__(self, colour, x, y, types):
-		self.colour = colour # Colour (string) either "white" or "black"
-		self.x = x # x coordinate (0 - 8), none of this fancy 'a', 'b' shit here
-		self.y = y # y coordinate (0 - 8)
-		self.types = types # List of possible types the piece can be (should just be two)
-		self.current_type = "unknown" # Current type
-		self.choice = -1 # Index of the current type in self.types (-1 = unknown type)
-		self.types_revealed = [True, False] # Whether the types are known (by default the first type is always known at game start)
-		
-
-		# 
-		self.last_state = None
-		self.move_pattern = None
-
-		
-
-	def init_from_copy(self, c):
-		self.colour = c.colour
-		self.x = c.x
-		self.y = c.y
-		self.types = c.types[:]
-		self.current_type = c.current_type
-		self.choice = c.choice
-		self.types_revealed = c.types_revealed[:]
-
-		self.last_state = None
-		self.move_pattern = None
-
-	
-
-	# Make a string for the piece (used for debug)
-	def __str__(self):
-		return str(self.current_type) + " " + str(self.types) + " at " + str(self.x) + ","+str(self.y)  
-
-	# Draw the piece in a pygame surface
-	def draw(self, window, grid_sz = [80,80]):
-
-		# First draw the image corresponding to self.current_type
-		img = images[self.colour][self.current_type]
-		rect = img.get_rect()
-		offset = [-rect.width/2,-3*rect.height/4] 
-		window.blit(img, (self.x * grid_sz[0] + grid_sz[0]/2 + offset[0], self.y * grid_sz[1] + grid_sz[1]/2 + offset[1]))
-		
-		
-		# Draw the two possible types underneath the current_type image
-		for i in range(len(self.types)):
-			if self.types_revealed[i] == True:
-				img = small_images[self.colour][self.types[i]]
-			else:
-				img = small_images[self.colour]["unknown"] # If the type hasn't been revealed, show a placeholder
-
-			
-			rect = img.get_rect()
-			offset = [-rect.width/2,-rect.height/2] 
-			
-			if i == 0:
-				target = (self.x * grid_sz[0] + grid_sz[0]/5 + offset[0], self.y * grid_sz[1] + 3*grid_sz[1]/4 + offset[1])				
-			else:
-				target = (self.x * grid_sz[0] + 4*grid_sz[0]/5 + offset[0], self.y * grid_sz[1] + 3*grid_sz[1]/4 + offset[1])				
-				
-			window.blit(img, target) # Blit shit
-	
-	# Collapses the wave function!		
-	def select(self):
-		if self.current_type == "unknown":
-			self.choice = random.randint(0,1)
-			self.current_type = self.types[self.choice]
-			self.types_revealed[self.choice] = True
-		return self.choice
-
-	# Uncollapses (?) the wave function!
-	def deselect(self):
-		#print "Deselect called"
-		if (self.x + self.y) % 2 != 0:
-			if (self.types[0] != self.types[1]) or (self.types_revealed[0] == False or self.types_revealed[1] == False):
-				self.current_type = "unknown"
-				self.choice = -1
-			else:
-				self.choice = 0 # Both the two types are the same
-
-	# The sad moment when you realise that you do not understand anything about a subject you studied for 4 years...
-# --- piece.py --- #
-# +++ player.py +++ #
-import subprocess
-
-
-
-# A player who can't play
-class Player():
-	def __init__(self, name, colour):
-		self.name = name
-		self.colour = colour
-
-# Player that runs from another process
-class AgentPlayer(Player):
-	def __init__(self, name, colour):
-		Player.__init__(self, name, colour)
-		self.p = subprocess.Popen(name, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=sys.stderr)
-		try:
-			self.p.stdin.write(colour + "\n")
-		except:
-			raise Exception("UNRESPONSIVE")
-
-	def select(self):
-		
-		#try:
-		self.p.stdin.write("SELECTION?\n")
-		line = self.p.stdout.readline().strip("\r\n ")
-		#except:
-		#	raise Exception("UNRESPONSIVE")
-		try:
-			result = map(int, line.split(" "))
-		except:
-			raise Exception("GIBBERISH \"" + str(line) + "\"")
-		return result
-
-	def update(self, result):
-		#print "Update " + str(result) + " called for AgentPlayer"
-#		try:
-		self.p.stdin.write(result + "\n")
-#		except:
-#		raise Exception("UNRESPONSIVE")
-
-	def get_move(self):
-		
-		try:
-			self.p.stdin.write("MOVE?\n")
-			line = self.p.stdout.readline().strip("\r\n ")
-		except:
-			raise Exception("UNRESPONSIVE")
-		try:
-			result = map(int, line.split(" "))
-		except:
-			raise Exception("GIBBERISH \"" + str(line) + "\"")
-		return result
-
-	def quit(self, final_result):
-		try:
-			self.p.stdin.write("QUIT " + final_result + "\n")
-		except:
-			self.p.kill()
-
-# So you want to be a player here?
-class HumanPlayer(Player):
-	def __init__(self, name, colour):
-		Player.__init__(self, name, colour)
-		
-	# Select your preferred account
-	def select(self):
-		if isinstance(graphics, GraphicsThread):
-			# Basically, we let the graphics thread do some shit and then return that information to the game thread
-			graphics.cond.acquire()
-			# We wait for the graphics thread to select a piece
-			while graphics.stopped() == False and graphics.state["select"] == None:
-				graphics.cond.wait() # The difference between humans and machines is that humans sleep
-			select = graphics.state["select"]
-			
-			
-			graphics.cond.release()
-			if graphics.stopped():
-				return [-1,-1]
-			return [select.x, select.y]
-		else:
-			# Since I don't display the board in this case, I'm not sure why I filled it in...
-			while True:
-				sys.stdout.write("SELECTION?\n")
-				try:
-					p = map(int, sys.stdin.readline().strip("\r\n ").split(" "))
-				except:
-					sys.stderr.write("ILLEGAL GIBBERISH\n")
-					continue
-	# It's your move captain
-	def get_move(self):
-		if isinstance(graphics, GraphicsThread):
-			graphics.cond.acquire()
-			while graphics.stopped() == False and graphics.state["dest"] == None:
-				graphics.cond.wait()
-			graphics.cond.release()
-			
-			return graphics.state["dest"]
-		else:
-
-			while True:
-				sys.stdout.write("MOVE?\n")
-				try:
-					p = map(int, sys.stdin.readline().strip("\r\n ").split(" "))
-				except:
-					sys.stderr.write("ILLEGAL GIBBERISH\n")
-					continue
-
-	# Are you sure you want to quit?
-	def quit(self, final_result):
-		sys.stdout.write("QUIT " + final_result + "\n")
-
-	# Completely useless function
-	def update(self, result):
-		if isinstance(graphics, GraphicsThread):
-			pass
-		else:
-			sys.stdout.write(result + "\n")	
-
-
-# Player that makes random moves
-class AgentRandom(Player):
-	def __init__(self, name, colour):
-		Player.__init__(self, name, colour)
-		self.choice = None
-
-		self.board = Board(style = "agent")
-
-	def select(self):
-		while True:
-			self.choice = self.board.pieces[self.colour][random.randint(0, len(self.board.pieces[self.colour])-1)]
-			all_moves = []
-			# Check that the piece has some possibility to move
-			tmp = self.choice.current_type
-			if tmp == "unknown": # For unknown pieces, try both types
-				for t in self.choice.types:
-					if t == "unknown":
-						continue
-					self.choice.current_type = t
-					all_moves += self.board.possible_moves(self.choice)
-			else:
-				all_moves = self.board.possible_moves(self.choice)
-			self.choice.current_type = tmp
-			if len(all_moves) > 0:
-				break
-		return [self.choice.x, self.choice.y]
-
-	def get_move(self):
-		moves = self.board.possible_moves(self.choice)
-		move = moves[random.randint(0, len(moves)-1)]
-		return move
-
-	def update(self, result):
-		#sys.stderr.write(sys.argv[0] + " : Update board for AgentRandom\n")
-		self.board.update(result)
-		self.board.verify()
-
-	def quit(self, final_result):
-		pass
-# --- player.py --- #
-# +++ thread_util.py +++ #
-import threading
-
-# A thread that can be stopped!
-# Except it can only be stopped if it checks self.stopped() periodically
-# So it can sort of be stopped
-class StoppableThread(threading.Thread):
-	def __init__(self):
-		threading.Thread.__init__(self)
-		self._stop = threading.Event()
-
-	def stop(self):
-		self._stop.set()
-
-	def stopped(self):
-		return self._stop.isSet()
-# --- thread_util.py --- #
+# EOF - created from update.sh on Wed Jan 23 22:01:52 WST 2013
