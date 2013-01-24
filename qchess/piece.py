@@ -41,15 +41,21 @@ class Piece():
 		return str(self.current_type) + " " + str(self.types) + " at " + str(self.x) + ","+str(self.y)  
 
 	# Draw the piece in a pygame surface
-	def draw(self, window, grid_sz = [80,80]):
+	def draw(self, window, grid_sz = [80,80], style="quantum"):
 
 		# First draw the image corresponding to self.current_type
 		img = images[self.colour][self.current_type]
 		rect = img.get_rect()
-		offset = [-rect.width/2,-3*rect.height/4] 
+		if style == "classical":
+			offset = [-rect.width/2, -rect.height/2]
+		else:
+			offset = [-rect.width/2,-3*rect.height/4] 
 		window.blit(img, (self.x * grid_sz[0] + grid_sz[0]/2 + offset[0], self.y * grid_sz[1] + grid_sz[1]/2 + offset[1]))
 		
 		
+		if style == "classical":
+			return
+
 		# Draw the two possible types underneath the current_type image
 		for i in range(len(self.types)):
 			if self.types_revealed[i] == True:

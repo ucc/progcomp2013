@@ -2,7 +2,11 @@
 
 # I still can't believe I am doing this
 
-# (This can't be done with gnu make, because of circular dependency issues)
+# This updates the component files from the target, as well as the target from the components
+# You can't do that with gnu make, because of the circular dependency
+# But this should probably not be used by any sane person
+
+exit 1
 
 target=qchess.py
 components="piece.py board.py player.py network.py thread_util.py game.py graphics.py main.py"
@@ -23,7 +27,6 @@ else
 	merge_required=true
 
 
-	echo "
 	for f in $components; do
 		
 		component_mod=$(stat -c %Y $f 2>/dev/null)
@@ -51,7 +54,7 @@ else
 			merge_required=true
 		fi
 	done
-	" > /dev/null
+
 
 fi
 

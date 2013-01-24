@@ -96,7 +96,7 @@ class Board():
 		if window == None:
 			return
 		for p in self.pieces["white"] + self.pieces["black"]:
-			p.draw(window, grid_sz)
+			p.draw(window, grid_sz, self.style)
 
 	# Draw the board in a pygame window
 	def display(self, window = None):

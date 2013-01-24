@@ -22,8 +22,7 @@ class GameThread(StoppableThread):
 						self.state["turn"] = p.base_player # "turn" contains the player who's turn it is
 					else:
 						self.state["turn"] = p
-				#try:
-				if True:
+				try:
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
 						break
@@ -81,18 +80,18 @@ class GameThread(StoppableThread):
 							graphics.state["moves"] = None
 
 			# Commented out exception stuff for now, because it makes it impossible to tell if I made an IndentationError somewhere
-				#except Exception,e:
-					#result = "ILLEGAL " + e.message
+				except Exception,e:
+					result = e.message
 					#sys.stderr.write(result + "\n")
 					
-					#self.stop()
-					#with self.lock:
-					#	self.final_result = self.state["turn"].colour + " " + "ILLEGAL"
+					self.stop()
+					with self.lock:
+						self.final_result = self.state["turn"].colour + " " + e.message
 
 				if self.board.king["black"] == None:
 					if self.board.king["white"] == None:
 						with self.lock:
-							self.final_result = "DRAW"
+							self.final_result = self.state["turn"].colour + " DRAW"
 					else:
 						with self.lock:
 							self.final_result = "white"

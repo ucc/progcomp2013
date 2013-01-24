@@ -1,6 +1,12 @@
 import subprocess
+import select
+import platform
 
+agent_timeout = -1.0 # Timeout in seconds for AI players to make moves
+			# WARNING: Won't work for windows based operating systems
 
+if platform.system() == "Windows":
+	agent_timeout = -1 # Hence this
 
 # A player who can't play
 class Player():
@@ -10,21 +16,47 @@ class Player():
 
 # Player that runs from another process
 class AgentPlayer(Player):
+
+
 	def __init__(self, name, colour):
 		Player.__init__(self, name, colour)
-		self.p = subprocess.Popen(name, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=sys.stderr)
-		try:
-			self.p.stdin.write(colour + "\n")
-		except:
+		self.p = subprocess.Popen(name, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+		
+		self.send_message(colour)
+
+	def send_message(self, s):
+		if agent_timeout > 0.0:
+			ready = select.select([], [self.p.stdin], [], agent_timeout)[1]
+		else:
+			ready = [self.p.stdin]
+		if self.p.stdin in ready:
+			#print "Writing to p.stdin"
+			try:
+				self.p.stdin.write(s + "\n")
+			except:
+				raise Exception("UNRESPONSIVE")
+		else:
+			raise Exception("UNRESPONSIVE")
+
+	def get_response(self):
+		if agent_timeout > 0.0:
+			ready = select.select([self.p.stdout], [], [], agent_timeout)[0]
+		else:
+			ready = [self.p.stdout]
+		if self.p.stdout in ready:
+			#print "Reading from p.stdout"
+			try:
+				return self.p.stdout.readline().strip("\r\n")
+			except: # Exception, e:
+				raise Exception("UNRESPONSIVE")
+		else:
 			raise Exception("UNRESPONSIVE")
 
 	def select(self):
+
+		self.send_message("SELECTION?")
+		line = self.get_response()
 		
-		#try:
-		self.p.stdin.write("SELECTION?\n")
-		line = self.p.stdout.readline().strip("\r\n ")
-		#except:
-		#	raise Exception("UNRESPONSIVE")
 		try:
 			result = map(int, line.split(" "))
 		except:
@@ -33,18 +65,14 @@ class AgentPlayer(Player):
 
 	def update(self, result):
 		#print "Update " + str(result) + " called for AgentPlayer"
-#		try:
-		self.p.stdin.write(result + "\n")
-#		except:
-#		raise Exception("UNRESPONSIVE")
+		self.send_message(result)
+
 
 	def get_move(self):
 		
-		try:
-			self.p.stdin.write("MOVE?\n")
-			line = self.p.stdout.readline().strip("\r\n ")
-		except:
-			raise Exception("UNRESPONSIVE")
+		self.send_message("MOVE?")
+		line = self.get_response()
+		
 		try:
 			result = map(int, line.split(" "))
 		except:
@@ -53,7 +81,7 @@ class AgentPlayer(Player):
 
 	def quit(self, final_result):
 		try:
-			self.p.stdin.write("QUIT " + final_result + "\n")
+			self.send_message("QUIT " + final_result)
 		except:
 			self.p.kill()
 
@@ -107,7 +135,8 @@ class HumanPlayer(Player):
 
 	# Are you sure you want to quit?
 	def quit(self, final_result):
-		sys.stdout.write("QUIT " + final_result + "\n")
+		if graphics == None:		
+			sys.stdout.write("QUIT " + final_result + "\n")
 
 	# Completely useless function
 	def update(self, result):

@@ -35,7 +35,7 @@ class Agent(AgentRandom): # Inherits from AgentRandom (in qchess.py)
 		return float(self.value[piece.types[0]] + self.value[piece.types[1]]) / 2.0
 		
 	# Score possible moves for the piece
-	# Highest score is 1.0 (which means: make this move!)
+	
 	def prioritise_moves(self, piece):
 
 		#sys.stderr.write(sys.argv[0] + ": prioritise called for " + str(piece) + "\n")
@@ -140,7 +140,7 @@ class Agent(AgentRandom): # Inherits from AgentRandom (in qchess.py)
 
 		if self.recurse_for >= 0:
 			opts = opts[0:self.recurse_for]
-		sys.stderr.write(sys.argv[0] + " : Before recurse, options are " + str(opts) + "\n")
+		#sys.stderr.write(sys.argv[0] + " : Before recurse, options are " + str(opts) + "\n")
 
 		# Take the best few moves, and recurse
 		for choice in opts[0:self.recurse_for]:
@@ -162,7 +162,7 @@ class Agent(AgentRandom): # Inherits from AgentRandom (in qchess.py)
 		
 
 		opts.sort(key = lambda e : e[1][1], reverse = True)
-		sys.stderr.write(sys.argv[0] + " : After recurse, options are " + str(opts) + "\n")
+		#sys.stderr.write(sys.argv[0] + " : After recurse, options are " + str(opts) + "\n")
 
 		self.depth -= 1
 		return list(opts[0])

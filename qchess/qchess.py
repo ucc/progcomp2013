@@ -43,15 +43,21 @@ class Piece():
 		return str(self.current_type) + " " + str(self.types) + " at " + str(self.x) + ","+str(self.y)  
 
 	# Draw the piece in a pygame surface
-	def draw(self, window, grid_sz = [80,80]):
+	def draw(self, window, grid_sz = [80,80], style="quantum"):
 
 		# First draw the image corresponding to self.current_type
 		img = images[self.colour][self.current_type]
 		rect = img.get_rect()
-		offset = [-rect.width/2,-3*rect.height/4] 
+		if style == "classical":
+			offset = [-rect.width/2, -rect.height/2]
+		else:
+			offset = [-rect.width/2,-3*rect.height/4] 
 		window.blit(img, (self.x * grid_sz[0] + grid_sz[0]/2 + offset[0], self.y * grid_sz[1] + grid_sz[1]/2 + offset[1]))
 		
 		
+		if style == "classical":
+			return
+
 		# Draw the two possible types underneath the current_type image
 		for i in range(len(self.types)):
 			if self.types_revealed[i] == True:
@@ -189,7 +195,7 @@ class Board():
 		if window == None:
 			return
 		for p in self.pieces["white"] + self.pieces["black"]:
-			p.draw(window, grid_sz)
+			p.draw(window, grid_sz, self.style)
 
 	# Draw the board in a pygame window
 	def display(self, window = None):
@@ -497,8 +503,14 @@ class Board():
 # --- board.py --- #
 # +++ player.py +++ #
 import subprocess
+import select
+import platform
 
+agent_timeout = -1.0 # Timeout in seconds for AI players to make moves
+			# WARNING: Won't work for windows based operating systems
 
+if platform.system() == "Windows":
+	agent_timeout = -1 # Hence this
 
 # A player who can't play
 class Player():
@@ -508,21 +520,47 @@ class Player():
 
 # Player that runs from another process
 class AgentPlayer(Player):
+
+
 	def __init__(self, name, colour):
 		Player.__init__(self, name, colour)
-		self.p = subprocess.Popen(name, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=sys.stderr)
-		try:
-			self.p.stdin.write(colour + "\n")
-		except:
+		self.p = subprocess.Popen(name, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+		
+		self.send_message(colour)
+
+	def send_message(self, s):
+		if agent_timeout > 0.0:
+			ready = select.select([], [self.p.stdin], [], agent_timeout)[1]
+		else:
+			ready = [self.p.stdin]
+		if self.p.stdin in ready:
+			#print "Writing to p.stdin"
+			try:
+				self.p.stdin.write(s + "\n")
+			except:
+				raise Exception("UNRESPONSIVE")
+		else:
+			raise Exception("UNRESPONSIVE")
+
+	def get_response(self):
+		if agent_timeout > 0.0:
+			ready = select.select([self.p.stdout], [], [], agent_timeout)[0]
+		else:
+			ready = [self.p.stdout]
+		if self.p.stdout in ready:
+			#print "Reading from p.stdout"
+			try:
+				return self.p.stdout.readline().strip("\r\n")
+			except: # Exception, e:
+				raise Exception("UNRESPONSIVE")
+		else:
 			raise Exception("UNRESPONSIVE")
 
 	def select(self):
+
+		self.send_message("SELECTION?")
+		line = self.get_response()
 		
-		#try:
-		self.p.stdin.write("SELECTION?\n")
-		line = self.p.stdout.readline().strip("\r\n ")
-		#except:
-		#	raise Exception("UNRESPONSIVE")
 		try:
 			result = map(int, line.split(" "))
 		except:
@@ -531,18 +569,14 @@ class AgentPlayer(Player):
 
 	def update(self, result):
 		#print "Update " + str(result) + " called for AgentPlayer"
-#		try:
-		self.p.stdin.write(result + "\n")
-#		except:
-#		raise Exception("UNRESPONSIVE")
+		self.send_message(result)
+
 
 	def get_move(self):
 		
-		try:
-			self.p.stdin.write("MOVE?\n")
-			line = self.p.stdout.readline().strip("\r\n ")
-		except:
-			raise Exception("UNRESPONSIVE")
+		self.send_message("MOVE?")
+		line = self.get_response()
+		
 		try:
 			result = map(int, line.split(" "))
 		except:
@@ -551,7 +585,7 @@ class AgentPlayer(Player):
 
 	def quit(self, final_result):
 		try:
-			self.p.stdin.write("QUIT " + final_result + "\n")
+			self.send_message("QUIT " + final_result)
 		except:
 			self.p.kill()
 
@@ -605,7 +639,8 @@ class HumanPlayer(Player):
 
 	# Are you sure you want to quit?
 	def quit(self, final_result):
-		sys.stdout.write("QUIT " + final_result + "\n")
+		if graphics == None:		
+			sys.stdout.write("QUIT " + final_result + "\n")
 
 	# Completely useless function
 	def update(self, result):
@@ -657,59 +692,113 @@ class AgentRandom(Player):
 # --- player.py --- #
 # +++ network.py +++ #
 import socket
+import select
+
+network_timeout_start = -1.0 # Timeout in seconds to wait for the start of a message
+network_timeout_delay = 1.0 # Maximum time between two characters being received
 
 class Network():
 	def __init__(self, colour, address = None):
 		self.socket = socket.socket()
+		#self.socket.setblocking(0)
 
 		if colour == "white":
-			self.port = 4563
+			self.port = 4562
 		else:
-			self.port = 4564
+			self.port = 4563
 
 		self.src = None
 
+	#	print str(self) + " listens on port " + str(self.port)
+
 		if address == None:
-			self.host = 'localhost' #socket.gethostname()
+			self.host = socket.gethostname()
 			self.socket.bind((self.host, self.port))
 			self.socket.listen(5)	
 
 			self.src, self.address = self.socket.accept()
+			self.src.send("ok\n")
+			if self.get_response() == "QUIT":
+				self.src.close()
 		else:
 			self.host = address
-			self.socket.connect(('localhost', self.port))
+			self.socket.connect((address, self.port))
 			self.src = self.socket
+			self.src.send("ok\n")
+			if self.get_response() == "QUIT":
+				self.src.close()
 
-	def getline(self):
-		s = self.src.recv(1)
+	def get_response(self):
+		# Timeout the start of the message (first character)
+		if network_timeout_start > 0.0:
+			ready = select.select([self.src], [], [], network_timeout_start)[0]
+		else:
+			ready = [self.src]
+		if self.src in ready:
+			s = self.src.recv(1)
+		else:
+			raise Exception("UNRESPONSIVE")
+
+
 		while s[len(s)-1] != '\n':
-			s += self.src.recv(1)
-		return s
-		
+			# Timeout on each character in the message
+			if network_timeout_delay > 0.0:
+				ready = select.select([self.src], [], [], network_timeout_delay)[0]
+			else:
+				ready = [self.src]
+			if self.src in ready:
+				s += self.src.recv(1) 
+			else:
+				raise Exception("UNRESPONSIVE")
+
+		return s.strip(" \r\n")
+
+	def send_message(self,s):
+		if network_timeout_start > 0.0:
+			ready = select.select([], [self.src], [], network_timeout_start)[1]
+		else:
+			ready = [self.src]
+
+		if self.src in ready:
+			self.src.send(s + "\n")
+		else:
+			raise Exception("UNRESPONSIVE")
+
+	def check_quit(self, s):
+		s = s.split(" ")
+		if s[0] == "QUIT":
+			with game.lock:
+				game.final_result = " ".join(s[1:]) + " " + str(opponent(self.colour))
+			game.stop()
+			return True
 
 		
 
 class NetworkSender(Player,Network):
-	def __init__(self, base_player, board, address = None):
+	def __init__(self, base_player, address = None):
 		self.base_player = base_player
 		Player.__init__(self, base_player.name, base_player.colour)
-		Network.__init__(self, base_player.colour, address)
 
-		self.board = board
+		self.address = address
+
+	def connect(self):
+		Network.__init__(self, self.base_player.colour, self.address)
+
+
 
 	def select(self):
 		[x,y] = self.base_player.select()
 		choice = self.board.grid[x][y]
 		s = str(x) + " " + str(y)
-		print str(self) + ".select sends " + s
-		self.src.send(s + "\n")
+		#print str(self) + ".select sends " + s
+		self.send_message(s)
 		return [x,y]
 
 	def get_move(self):
 		[x,y] = self.base_player.get_move()
 		s = str(x) + " " + str(y)
-		print str(self) + ".get_move sends " + s
-		self.src.send(s + "\n")
+		#print str(self) + ".get_move sends " + s
+		self.send_message(s)
 		return [x,y]
 
 	def update(self, s):
@@ -724,31 +813,49 @@ class NetworkSender(Player,Network):
 					s += " " + str(selected.types[i])
 				else:
 					s += " unknown"
-			print str(self) + ".update sends " + s
-			self.src.send(s + "\n")
+			#print str(self) + ".update sends " + s
+			self.send_message(s)
 				
 
 	def quit(self, final_result):
 		self.base_player.quit(final_result)
+		#self.src.send("QUIT " + str(final_result) + "\n")
 		self.src.close()
 
 class NetworkReceiver(Player,Network):
-	def __init__(self, colour, board, address=None):
+	def __init__(self, colour, address=None):
 		
 		Player.__init__(self, address, colour)
 
-		Network.__init__(self, colour, address)
+		self.address = address
 
-		self.board = board
+		self.board = None
+
+	def connect(self):
+		Network.__init__(self, self.colour, self.address)
 			
 
 	def select(self):
-		s = self.getline().strip(" \r\n")
-		return map(int,s.split(" "))
+		
+		s = self.get_response()
+		#print str(self) + ".select gets " + s
+		[x,y] = map(int,s.split(" "))
+		if x == -1 and y == -1:
+			#print str(self) + ".select quits the game"
+			with game.lock:
+				game.final_state = "network terminated " + self.colour
+			game.stop()
+		return [x,y]
 	def get_move(self):
-		s = self.getline().strip(" \r\n")
-		print str(self) + ".get_move gets " + s
-		return map(int, s.split(" "))
+		s = self.get_response()
+		#print str(self) + ".get_move gets " + s
+		[x,y] = map(int,s.split(" "))
+		if x == -1 and y == -1:
+			#print str(self) + ".get_move quits the game"
+			with game.lock:
+				game.final_state = "network terminated " + self.colour
+			game.stop()
+		return [x,y]
 
 	def update(self, result):
 		
@@ -756,8 +863,8 @@ class NetworkReceiver(Player,Network):
 		[x,y] = map(int, result[0:2])
 		selected = self.board.grid[x][y]
 		if selected != None and selected.colour == self.colour and len(result) > 2 and not "->" in result:
-			s = self.getline().strip(" \r\n")
-			print str(self) + ".update - receives " + str(s)
+			s = self.get_response()
+			#print str(self) + ".update - receives " + str(s)
 			s = s.split(" ")
 			selected.choice = int(s[2])
 			for i in range(2):
@@ -768,7 +875,8 @@ class NetworkReceiver(Player,Network):
 					selected.types_revealed[i] = True
 			selected.current_type = selected.types[selected.choice]	
 		else:
-			print str(self) + ".update - ignore result " + str(result)			
+			pass
+			#print str(self) + ".update - ignore result " + str(result)			
 		
 
 	def quit(self, final_result):
@@ -817,8 +925,7 @@ class GameThread(StoppableThread):
 						self.state["turn"] = p.base_player # "turn" contains the player who's turn it is
 					else:
 						self.state["turn"] = p
-				#try:
-				if True:
+				try:
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
 						break
@@ -876,18 +983,18 @@ class GameThread(StoppableThread):
 							graphics.state["moves"] = None
 
 			# Commented out exception stuff for now, because it makes it impossible to tell if I made an IndentationError somewhere
-				#except Exception,e:
-					#result = "ILLEGAL " + e.message
+				except Exception,e:
+					result = e.message
 					#sys.stderr.write(result + "\n")
 					
-					#self.stop()
-					#with self.lock:
-					#	self.final_result = self.state["turn"].colour + " " + "ILLEGAL"
+					self.stop()
+					with self.lock:
+						self.final_result = self.state["turn"].colour + " " + e.message
 
 				if self.board.king["black"] == None:
 					if self.board.king["white"] == None:
 						with self.lock:
-							self.final_result = "DRAW"
+							self.final_result = self.state["turn"].colour + " DRAW"
 					else:
 						with self.lock:
 							self.final_result = "white"
@@ -990,7 +1097,10 @@ class GraphicsThread(StoppableThread):
 				if event.type == pygame.QUIT:
 					if isinstance(game, GameThread):
 						with game.lock:
-							game.final_result = "terminated"
+							game.final_result = ""
+							if game.state["turn"] != None:
+								game.final_result = game.state["turn"].colour + " "
+							game.final_result += "terminated"
 						game.stop()
 					self.stop()
 					break
@@ -1191,18 +1301,160 @@ class GraphicsThread(StoppableThread):
 		pygame.display.flip()
 
 	def getstr(self, prompt = None):
+		s = pygame.Surface((self.window.get_width(), self.window.get_height()))
+		s.blit(self.window, (0,0))
 		result = ""
+
 		while True:
 			#print "LOOP"
 			if prompt != None:
 				self.message(prompt)
 				self.message(result, pos = (0, 1))
 	
+			pygame.event.pump()
 			for event in pygame.event.get():
+				if event.type == pygame.QUIT:
+					return None
 				if event.type == pygame.KEYDOWN:
-					if chr(event.key) == '\r':
-						return result
-					result += str(chr(event.key))
+					if event.key == pygame.K_BACKSPACE:
+						result = result[0:len(result)-1]
+						self.window.blit(s, (0,0)) # Revert the display
+						continue
+				
+						
+					try:
+						if event.unicode == '\r':
+							return result
+					
+						result += str(event.unicode)
+					except:
+						continue
+
+
+	# Function to pick a button
+	def SelectButton(self, choices, prompt = None, font_size=32):
+		self.board.display_grid(self.window, self.grid_sz)
+		if prompt != None:
+			self.message(prompt)
+		font = pygame.font.Font(None, font_size)
+		targets = []
+		sz = self.window.get_size()
+
+		
+		for i in range(len(choices)):
+			c = choices[i]
+			
+			text = font.render(c, 1, pygame.Color(0,0,0))
+			p = (sz[0] / 2 - (1.5*text.get_width())/2, sz[1] / 2 +(i-1)*text.get_height()+(i*2))
+			targets.append((p[0], p[1], p[0] + 1.5*text.get_width(), p[1] + text.get_height()))
+
+		while True:
+			mp =pygame.mouse.get_pos()
+			for i in range(len(choices)):
+				c = choices[i]
+				if mp[0] > targets[i][0] and mp[0] < targets[i][2] and mp[1] > targets[i][1] and mp[1] < targets[i][3]:
+					font_colour = pygame.Color(255,0,0)
+					box_colour = pygame.Color(0,0,255,128)
+				else:
+					font_colour = pygame.Color(0,0,0)
+					box_colour = pygame.Color(128,128,128)
+				
+				text = font.render(c, 1, font_colour)
+				s = pygame.Surface((text.get_width()*1.5, text.get_height()), pygame.SRCALPHA)
+				s.fill(box_colour)
+				pygame.draw.rect(s, (0,0,0), (0,0,1.5*text.get_width(), text.get_height()), self.grid_sz[0]/10)
+				s.blit(text, ((text.get_width()*1.5)/2 - text.get_width()/2 ,0))
+				self.window.blit(s, targets[i][0:2])
+				
+	
+			pygame.display.flip()
+
+			for event in pygame.event.get():
+				if event.type == pygame.QUIT:
+					return None
+				elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+					for i in range(len(targets)):
+						t = targets[i]
+						if event.pos[0] > t[0] and event.pos[0] < t[2]:
+							if event.pos[1] > t[1] and event.pos[1] < t[3]:
+								return i
+						#print "Reject " + str(i) + str(event.pos) + " vs " + str(t)
+		
+
+	# Function to pick players in a nice GUI way
+	def SelectPlayers(self, players = []):
+
+
+		
+		missing = ["white", "black"]
+		for p in players:
+			missing.remove(p.colour)
+
+		for colour in missing:
+			
+			
+			choice = self.SelectButton(["human", "agent", "network"],prompt = "Choose " + str(colour) + " player", font_size=32)
+			if choice == 0:
+				players.append(HumanPlayer("human", colour))
+			elif choice == 1:
+				try:
+					import Tkinter
+					from tkFileDialog import askopenfilename
+					root = Tkinter.Tk() # Need a root to make Tkinter behave
+					root.withdraw() # Some sort of magic incantation
+					path = askopenfilename(parent=root, initialdir="../agents",title=
+'Choose an agent.')
+					if path == "":
+						return self.SelectPlayers()
+					players.append(make_player(path, colour))	
+				except Exception,e:
+					print "Exception was " + str(e.message)
+					p = None
+					while p == None:
+						self.board.display_grid(self.window, self.grid_sz)
+						pygame.display.flip()
+						path = self.getstr(prompt = "Enter path:")
+						if path == None:
+							return None
+
+						if path == "":
+							return self.SelectPlayers()
+
+						try:
+							p = make_player(path, colour)
+						except:
+							self.board.display_grid(self.window, self.grid_sz)
+							pygame.display.flip()
+							self.message("Invalid path!")
+							time.sleep(1)
+							p = None
+					players.append(p)
+			elif choice == 2:
+				address = ""
+				while address == "":
+					self.board.display_grid(self.window, self.grid_sz)
+					
+					address = self.getstr(prompt = "Address? (leave blank for server)")
+					if address == None:
+						return None
+					if address == "":
+						address = None
+						continue
+					try:
+						map(int, address.split("."))
+					except:
+						self.board.display_grid(self.window, self.grid_sz)
+						self.message("Invalid IPv4 address!")
+						address = ""
+
+				players.append(NetworkReceiver(colour, address))
+			else:
+				return None
+		#print str(self) + ".SelectPlayers returns " + str(players)
+		return players
+			
+				
+			
 # --- graphics.py --- #
 # +++ main.py +++ #
 #!/usr/bin/python -u
@@ -1225,52 +1477,163 @@ import time
 turn_delay = 0.5
 [game, graphics] = [None, None]
 
+def make_player(name, colour):
+	if name[0] == '@':
+		if name[1:] == "human":
+			return HumanPlayer(name, colour)
+		s = name[1:].split(":")
+		if s[0] == "network":
+			address = None
+			if len(s) > 1:
+				address = s[1]
+			return NetworkReceiver(colour, address)
+
+	else:
+		return AgentPlayer(name, colour)
+			
+
 
 # The main function! It does the main stuff!
 def main(argv):
 
 	# Apparently python will silently treat things as local unless you do this
-	# But (here's the fun part), only if you actually modify the variable.
-	# For example, all those 'if graphics_enabled' conditions work in functions that never say it is global
 	# Anyone who says "You should never use a global variable" can die in a fire
 	global game
 	global graphics
-
-	# Magical argument parsing goes here
-#	if len(argv) == 1:
-#		players = [HumanPlayer("saruman", "white"), AgentRandom("sabbath", "black")]
-#	elif len(argv) == 2:
-#		players = [AgentPlayer(argv[1], "white"), HumanPlayer("shadow", "black"), ]
-#	elif len(argv) == 3:
-#		players = [AgentPlayer(argv[1], "white"), AgentPlayer(argv[2], "black")]
+	
+	global turn_delay
+	global agent_timeout
+	global log_file
+	global src_file
 
 
-	board = Board(style = "quantum")
-	# Construct the board!
-	if len(argv) == 1:
-		players = [NetworkSender(HumanPlayer("saruman", "white"), board), NetworkReceiver("black", board, 'localhost')]
-		
+
+	
+	style = "quantum"
+	colour = "white"
+	graphics_enabled = True
+
+	players = []
+	i = 0
+	while i < len(argv)-1:
+		i += 1
+		arg = argv[i]
+		if arg[0] != '-':
+			players.append(make_player(arg, colour))
+			if colour == "white":
+				colour = "black"
+			elif colour == "black":
+				pass
+			else:
+				sys.stderr.write(sys.argv[0] + " : Too many players (max 2)\n")
+			continue
+
+		# Option parsing goes here
+		if arg[1] == '-' and arg[2:] == "classical":
+			style = "classical"
+		elif arg[1] == '-' and arg[2:] == "quantum":
+			style = "quantum"
+		elif (arg[1] == '-' and arg[2:] == "graphics"):
+			graphics_enabled = not graphics_enabled
+		elif (arg[1] == '-' and arg[2:].split("=")[0] == "file"):
+			# Load game from file
+			if len(arg[2:].split("=")) == 1:
+				src_file = sys.stdout
+			else:
+				src_file = arg[2:].split("=")[1]
+		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
+			# Log file
+			if len(arg[2:].split("=")) == 1:
+				log_file = sys.stdout
+			else:
+				log_file = arg[2:].split("=")[1]
+		elif (arg[1] == '-' and arg[2:].split("=")[0] == "delay"):
+			# Delay
+			if len(arg[2:].split("=")) == 1:
+				turn_delay = 0
+			else:
+				turn_delay = float(arg[2:].split("=")[1])
+
+		elif (arg[1] == '-' and arg[2:].split("=")[0] == "timeout"):
+			# Timeout
+			if len(arg[2:].split("=")) == 1:
+				agent_timeout = -1
+			elif platform.system() != "Windows": # Windows breaks this option
+				agent_timeout = float(arg[2:].split("=")[1])
+			else:
+				sys.stderr.write(sys.argv[0] + " : Warning - You are using Windows\n")
+				agent_timeout = -1
+				
+		elif (arg[1] == '-' and arg[2:] == "help"):
+			# Help
+			os.system("less data/help.txt") # The best help function
+			return 0
+
+
+	# Create the board
+	board = Board(style)
+
+
+	# Initialise GUI
+	if graphics_enabled == True:
+		try:
+			graphics = GraphicsThread(board, grid_sz = [64,64]) # Construct a GraphicsThread!
+		except Exception,e:
+			graphics = None
+			sys.stderr.write(sys.argv[0] + " : Got exception trying to initialise graphics\n"+str(e.message)+"\nDisabled graphics\n")
+			graphics_enabled = False
+
+	# If there are no players listed, display a nice pretty menu
+	if len(players) != 2:
+		if graphics != None:
+			players = graphics.SelectPlayers(players)
+		else:
+			sys.stderr.write(sys.argv[0] + " : Usage " + sys.argv[0] + " white black\n")
+			return 44
+
+	# If there are still no players, quit
+	if players == None or len(players) != 2:
+		sys.stderr.write(sys.argv[0] + " : Graphics window closed before players chosen\n")
+		return 45
+
+
+	# Wrap NetworkSender players around original players if necessary
+	for i in range(len(players)):
+		if isinstance(players[i], NetworkReceiver):
+			players[i].board = board # Network players need direct access to the board
+			for j in range(len(players)):
+				if j == i:
+					continue
+				if isinstance(players[j], NetworkSender) or isinstance(players[j], NetworkReceiver):
+					continue
+				players[j] = NetworkSender(players[j], players[i].address)
+				players[j].board = board
+
+	# Connect the networked players
+	for p in players:
+		if isinstance(p, NetworkSender) or isinstance(p, NetworkReceiver):
+			if graphics != None:
+				graphics.board.display_grid(graphics.window, graphics.grid_sz)
+				graphics.message("Connecting to " + p.colour + " player...")
+			p.connect()
+
+
+	# Construct a GameThread! Make it global! Damn the consequences!
+	game = GameThread(board, players) 
+
+
+	
+	if graphics != None:
+		game.start() # This runs in a new thread
+		graphics.run()
+		game.join()
+		return game.error + graphics.error
 	else:
-		players = [NetworkReceiver("white", board, 'localhost'), NetworkSender(HumanPlayer("sabbath", "black"), board)]
-		
-	
-	
-
-	graphics = GraphicsThread(board, grid_sz = [64,64]) # Construct a GraphicsThread! I KNOW WHAT I'M DOING! BEAR WITH ME!
-	
-
-
-
-	game = GameThread(board, players) # Construct a GameThread! Make it global! Damn the consequences!
-	game.start() # This runs in a new thread
-
-	graphics.run()
-	game.join()
-	return game.error + graphics.error
-
+		game.run()
+		return game.error
 
 # This is how python does a main() function...
 if __name__ == "__main__":
 	sys.exit(main(sys.argv))
 # --- main.py --- #
-# EOF - created from update.sh on Thu Jan 24 03:04:38 WST 2013
+# EOF - created from make on Thu Jan 24 17:04:54 WST 2013

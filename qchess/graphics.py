@@ -71,7 +71,10 @@ class GraphicsThread(StoppableThread):
 				if event.type == pygame.QUIT:
 					if isinstance(game, GameThread):
 						with game.lock:
-							game.final_result = "terminated"
+							game.final_result = ""
+							if game.state["turn"] != None:
+								game.final_result = game.state["turn"].colour + " "
+							game.final_result += "terminated"
 						game.stop()
 					self.stop()
 					break
@@ -272,15 +275,157 @@ class GraphicsThread(StoppableThread):
 		pygame.display.flip()
 
 	def getstr(self, prompt = None):
+		s = pygame.Surface((self.window.get_width(), self.window.get_height()))
+		s.blit(self.window, (0,0))
 		result = ""
+
 		while True:
 			#print "LOOP"
 			if prompt != None:
 				self.message(prompt)
 				self.message(result, pos = (0, 1))
 	
+			pygame.event.pump()
 			for event in pygame.event.get():
+				if event.type == pygame.QUIT:
+					return None
 				if event.type == pygame.KEYDOWN:
-					if chr(event.key) == '\r':
-						return result
-					result += str(chr(event.key))
+					if event.key == pygame.K_BACKSPACE:
+						result = result[0:len(result)-1]
+						self.window.blit(s, (0,0)) # Revert the display
+						continue
+				
+						
+					try:
+						if event.unicode == '\r':
+							return result
+					
+						result += str(event.unicode)
+					except:
+						continue
+
+
+	# Function to pick a button
+	def SelectButton(self, choices, prompt = None, font_size=32):
+		self.board.display_grid(self.window, self.grid_sz)
+		if prompt != None:
+			self.message(prompt)
+		font = pygame.font.Font(None, font_size)
+		targets = []
+		sz = self.window.get_size()
+
+		
+		for i in range(len(choices)):
+			c = choices[i]
+			
+			text = font.render(c, 1, pygame.Color(0,0,0))
+			p = (sz[0] / 2 - (1.5*text.get_width())/2, sz[1] / 2 +(i-1)*text.get_height()+(i*2))
+			targets.append((p[0], p[1], p[0] + 1.5*text.get_width(), p[1] + text.get_height()))
+
+		while True:
+			mp =pygame.mouse.get_pos()
+			for i in range(len(choices)):
+				c = choices[i]
+				if mp[0] > targets[i][0] and mp[0] < targets[i][2] and mp[1] > targets[i][1] and mp[1] < targets[i][3]:
+					font_colour = pygame.Color(255,0,0)
+					box_colour = pygame.Color(0,0,255,128)
+				else:
+					font_colour = pygame.Color(0,0,0)
+					box_colour = pygame.Color(128,128,128)
+				
+				text = font.render(c, 1, font_colour)
+				s = pygame.Surface((text.get_width()*1.5, text.get_height()), pygame.SRCALPHA)
+				s.fill(box_colour)
+				pygame.draw.rect(s, (0,0,0), (0,0,1.5*text.get_width(), text.get_height()), self.grid_sz[0]/10)
+				s.blit(text, ((text.get_width()*1.5)/2 - text.get_width()/2 ,0))
+				self.window.blit(s, targets[i][0:2])
+				
+	
+			pygame.display.flip()
+
+			for event in pygame.event.get():
+				if event.type == pygame.QUIT:
+					return None
+				elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+					for i in range(len(targets)):
+						t = targets[i]
+						if event.pos[0] > t[0] and event.pos[0] < t[2]:
+							if event.pos[1] > t[1] and event.pos[1] < t[3]:
+								return i
+						#print "Reject " + str(i) + str(event.pos) + " vs " + str(t)
+		
+
+	# Function to pick players in a nice GUI way
+	def SelectPlayers(self, players = []):
+
+
+		
+		missing = ["white", "black"]
+		for p in players:
+			missing.remove(p.colour)
+
+		for colour in missing:
+			
+			
+			choice = self.SelectButton(["human", "agent", "network"],prompt = "Choose " + str(colour) + " player", font_size=32)
+			if choice == 0:
+				players.append(HumanPlayer("human", colour))
+			elif choice == 1:
+				try:
+					import Tkinter
+					from tkFileDialog import askopenfilename
+					root = Tkinter.Tk() # Need a root to make Tkinter behave
+					root.withdraw() # Some sort of magic incantation
+					path = askopenfilename(parent=root, initialdir="../agents",title=
+'Choose an agent.')
+					if path == "":
+						return self.SelectPlayers()
+					players.append(make_player(path, colour))	
+				except Exception,e:
+					print "Exception was " + str(e.message)
+					p = None
+					while p == None:
+						self.board.display_grid(self.window, self.grid_sz)
+						pygame.display.flip()
+						path = self.getstr(prompt = "Enter path:")
+						if path == None:
+							return None
+
+						if path == "":
+							return self.SelectPlayers()
+
+						try:
+							p = make_player(path, colour)
+						except:
+							self.board.display_grid(self.window, self.grid_sz)
+							pygame.display.flip()
+							self.message("Invalid path!")
+							time.sleep(1)
+							p = None
+					players.append(p)
+			elif choice == 2:
+				address = ""
+				while address == "":
+					self.board.display_grid(self.window, self.grid_sz)
+					
+					address = self.getstr(prompt = "Address? (leave blank for server)")
+					if address == None:
+						return None
+					if address == "":
+						address = None
+						continue
+					try:
+						map(int, address.split("."))
+					except:
+						self.board.display_grid(self.window, self.grid_sz)
+						self.message("Invalid IPv4 address!")
+						address = ""
+
+				players.append(NetworkReceiver(colour, address))
+			else:
+				return None
+		#print str(self) + ".SelectPlayers returns " + str(players)
+		return players
+			
+				
+			
