@@ -291,8 +291,8 @@ def main(argv):
 	
 	agent = Agent(argv[0], colour) # Creates your agent
 
-	graphics = AgentGraphics(agent.board, title="Agent Bishop (" + str(colour) + ") - DEBUG VIEW")
-	graphics.start()
+	#graphics = AgentGraphics(agent.board, title="Agent Bishop (" + str(colour) + ") - DEBUG VIEW")
+	#graphics.start()
 
 	# Plays quantum chess using your agent
 	while True:
@@ -312,8 +312,8 @@ def main(argv):
 		else:
 			agent.update(line) # Updates agent.board
 
-	graphics.stop()
-	graphics.join()
+	#graphics.stop()
+	#graphics.join()
 	return 0
 
 # Don't touch this

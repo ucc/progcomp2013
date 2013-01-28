@@ -1,16 +1,40 @@
-# Makefile that builds qchess.py from the component files
+# Makefile that builds qchess for UCC::Progcomp2013
 
-TARGET = qchess.py
-COMPONENTS = piece.py board.py player.py network.py thread_util.py game.py graphics.py main.py
-#COMPONENTS=$(shell ls *.py | tr '\t' '\n' | grep -v $(TARGET))
+SCRIPT=qchess.py
+DLL_PATH=win32_dll
 
-$(TARGET) : $(COMPONENTS)
-	echo "#!/usr/bin/python -u" > $(TARGET)
-	for f in $(COMPONENTS); do echo "# +++ $$f +++ #" >> $(TARGET); cat $$f >> $(TARGET); echo "# --- $$f --- #" >> $(TARGET); done
-	echo "# EOF - created from make on $$(date)" >> $(TARGET)
-	chmod u+x $(TARGET)
+all : python_native frozen
+
+frozen : win32_frozen linux64_frozen
+	cd build; for d in $$(ls); do zip -r $$d.zip $$d; rm -r $$d; done
+
+python_native : 
+	make -C src
+	mv src/$(SCRIPT) ./
+
+images :
+	cd tools; python image_builder.py 
+
+win32_frozen : $(SCRIPT) images
+	sed -i 's:create_images(grid_sz):load_images():g' $(SCRIPT)
+	wine "C:\\Python27\\python.exe" build.py build
+	for d in $$(ls $(DLL_PATH)); do cp $(DLL_PATH)/$$d build/exe.win32-2.7/; done
+	for b in $$(ls build); do if [ -d build/$$b ]; then cp -r data build/$$b; fi; done
+	sed -i 's:load_images():create_images(grid_sz):g' $(SCRIPT)
+
+linux64_frozen : $(SCRIPT) images
+	sed -i 's:create_images(grid_sz):load_images():g' $(SCRIPT)
+	python build.py build
+	for b in $$(ls build); do if [ -d build/$$b ]; then cp -r data build/$$b; fi; done
+	sed -i 's:load_images():create_images(grid_sz):g' $(SCRIPT)	
+	
+	
 
 clean :
+	make -C src clean
+	rm -f $(SCRIPT)
 	rm -f *~
-	rm -f *.pyc
-	rm -f $(TARGET)
+	rm -rf build
+	rm -rf data/images
+	rm -f tools/*~
+	rm -f tools/*.pyc

@@ -1,5 +1,4 @@
 #!/usr/bin/python -u
-# +++ piece.py +++ #
 import random
 
 # I know using non-abreviated strings is inefficient, but this is python, who cares?
@@ -96,7 +95,6 @@ class Piece():
 
 	# The sad moment when you realise that you do not understand anything about a subject you studied for 4 years...
 # --- piece.py --- #
-# +++ board.py +++ #
 [w,h] = [8,8] # Width and height of board(s)
 
 # Class to represent a quantum chess board
@@ -501,10 +499,10 @@ class Board():
 	def on_board(self, x, y):
 		return (x >= 0 and x < w) and (y >= 0 and y < h)
 # --- board.py --- #
-# +++ player.py +++ #
 import subprocess
 import select
 import platform
+
 
 agent_timeout = -1.0 # Timeout in seconds for AI players to make moves
 			# WARNING: Won't work for windows based operating systems
@@ -689,8 +687,80 @@ class AgentRandom(Player):
 
 	def quit(self, final_result):
 		pass
+
+
 # --- player.py --- #
-# +++ network.py +++ #
+import multiprocessing
+
+# Hacky alternative to using select for timing out players
+
+# WARNING: Do not wrap around HumanPlayer or things breakify
+
+class Sleeper(multiprocessing.Process):
+	def __init__(self, timeout):
+		multiprocessing.Process.__init__(self)
+		self.timeout = timeout
+
+	def run(self):
+		time.sleep(self.timeout)
+
+
+class Worker(multiprocessing.Process):
+	def __init__(self, function, args, q):
+		multiprocessing.Process.__init__(self)
+		self.function = function
+		self.args = args
+		self.q = q
+
+	def run(self):
+		#print str(self) + " runs " + str(self.function) + " with args " + str(self.args) 
+		self.q.put(self.function(*self.args))
+		
+		
+
+def TimeoutFunction(function, args, timeout):
+	q = multiprocessing.Queue()
+	w = Worker(function, args, q)
+	s = Sleeper(timeout)
+	w.start()
+	s.start()
+	while True: # Busy loop of crappyness
+		if not w.is_alive():
+			s.terminate()
+			result = q.get()
+			w.join()
+			#print "TimeoutFunction gets " + str(result)
+			return result
+		elif not s.is_alive():
+			w.terminate()
+			s.join()
+			raise Exception("UNRESPONSIVE")
+
+	
+		
+
+# A player that wraps another player and times out its moves
+# Uses threads
+# A (crappy) alternative to the use of select()
+class TimeoutPlayer(Player):
+	def __init__(self, base_player, timeout):
+		Player.__init__(self, base_player.name, base_player.colour)
+		self.base_player = base_player
+		self.timeout = timeout
+		
+	def select(self):
+		return TimeoutFunction(self.base_player.select, [], self.timeout)
+		
+	
+	def get_move(self):
+		return TimeoutFunction(self.base_player.get_move, [], self.timeout)
+
+	def update(self, result):
+		return TimeoutFunction(self.base_player.update, [result], self.timeout)
+
+	def quit(self, final_result):
+		return TimeoutFunction(self.base_player.quit, [final_result], self.timeout)
+# --- timeout_player.py --- #
 import socket
 import select
 
@@ -883,7 +953,6 @@ class NetworkReceiver(Player,Network):
 		self.src.close()
 	
 # --- network.py --- #
-# +++ thread_util.py +++ #
 import threading
 
 # A thread that can be stopped!
@@ -900,7 +969,6 @@ class StoppableThread(threading.Thread):
 	def stopped(self):
 		return self._stop.isSet()
 # --- thread_util.py --- #
-# +++ game.py +++ #
 
 # A thread that runs the game
 class GameThread(StoppableThread):
@@ -925,7 +993,8 @@ class GameThread(StoppableThread):
 						self.state["turn"] = p.base_player # "turn" contains the player who's turn it is
 					else:
 						self.state["turn"] = p
-				try:
+				#try:
+				if True:
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
 						break
@@ -983,13 +1052,13 @@ class GameThread(StoppableThread):
 							graphics.state["moves"] = None
 
 			# Commented out exception stuff for now, because it makes it impossible to tell if I made an IndentationError somewhere
-				except Exception,e:
-					result = e.message
-					#sys.stderr.write(result + "\n")
-					
-					self.stop()
-					with self.lock:
-						self.final_result = self.state["turn"].colour + " " + e.message
+			#	except Exception,e:
+			#		result = e.message
+			#		#sys.stderr.write(result + "\n")
+			#		
+			#		self.stop()
+			#		with self.lock:
+			#			self.final_result = self.state["turn"].colour + " " + e.message
 
 				if self.board.king["black"] == None:
 					if self.board.king["white"] == None:
@@ -1023,8 +1092,8 @@ def opponent(colour):
 	else:
 		return "white"
 # --- game.py --- #
-# +++ graphics.py +++ #
 import pygame
+import os
 
 # Dictionary that stores the unicode character representations of the different pieces
 # Chess was clearly the reason why unicode was invented
@@ -1047,6 +1116,44 @@ piece_char = {"white" : {"king" : u'\u2654',
 images = {"white" : {}, "black" : {}}
 small_images = {"white" : {}, "black" : {}}
 
+def create_images(grid_sz, font_name=os.path.join(os.path.curdir, "data", "DejaVuSans.ttf")):
+
+	# Get the font sizes
+	l_size = 5*(grid_sz[0] / 8)
+	s_size = 3*(grid_sz[0] / 8)
+
+	for c in piece_char.keys():
+		
+		if c == "black":
+			for p in piece_char[c].keys():
+				images[c].update({p : pygame.font.Font(font_name, l_size).render(piece_char[c][p], True,(0,0,0))})
+				small_images[c].update({p : pygame.font.Font(font_name, s_size).render(piece_char[c][p],True,(0,0,0))})		
+		elif c == "white":
+			for p in piece_char[c].keys():
+				images[c].update({p : pygame.font.Font(font_name, l_size+1).render(piece_char["black"][p], True,(255,255,255))})
+				images[c][p].blit(pygame.font.Font(font_name, l_size).render(piece_char[c][p], True,(0,0,0)),(0,0))
+				small_images[c].update({p : pygame.font.Font(font_name, s_size+1).render(piece_char["black"][p],True,(255,255,255))})
+				small_images[c][p].blit(pygame.font.Font(font_name, s_size).render(piece_char[c][p],True,(0,0,0)),(0,0))
+	
+
+def load_images(image_dir=os.path.join(os.path.curdir, "data", "images")):
+	if not os.path.exists(image_dir):
+		raise Exception("Couldn't load images from " + image_dir + " (path doesn't exist)")
+	for c in piece_char.keys():
+		for p in piece_char[c].keys():
+			images[c].update({p : pygame.image.load(os.path.join(image_dir, c + "_" + p + ".png"))})
+			small_images[c].update({p : pygame.image.load(os.path.join(image_dir, c + "_" + p + "_small.png"))})
+# --- images.py --- #
+import pygame
+
+
+
+
+
+
+
+
+
 # A thread to make things pretty
 class GraphicsThread(StoppableThread):
 	def __init__(self, board, title = "UCC::Progcomp 2013 - QChess", grid_sz = [80,80]):
@@ -1056,25 +1163,27 @@ class GraphicsThread(StoppableThread):
 		pygame.init()
 		self.window = pygame.display.set_mode((grid_sz[0] * w, grid_sz[1] * h))
 		pygame.display.set_caption(title)
+
+		#print "Initialised properly"
+		
 		self.grid_sz = grid_sz[:]
 		self.state = {"select" : None, "dest" : None, "moves" : None, "overlay" : None, "coverage" : None}
 		self.error = 0
 		self.lock = threading.RLock()
 		self.cond = threading.Condition()
 
-		# Get the font sizes
-		l_size = 5*(self.grid_sz[0] / 8)
-		s_size = 3*(self.grid_sz[0] / 8)
-		for p in piece_types.keys():
-			c = "black"
-			images[c].update({p : pygame.font.Font("data/DejaVuSans.ttf", l_size).render(piece_char[c][p], True,(0,0,0))})
-			small_images[c].update({p : pygame.font.Font("data/DejaVuSans.ttf", s_size).render(piece_char[c][p],True,(0,0,0))})
-			c = "white"
+		#print "Test font"
+		pygame.font.Font(os.path.join(os.path.curdir, "data", "DejaVuSans.ttf"), 32).render("Hello", True,(0,0,0))
 
-			images[c].update({p : pygame.font.Font("data/DejaVuSans.ttf", l_size+1).render(piece_char["black"][p], True,(255,255,255))})
-			images[c][p].blit(pygame.font.Font("data/DejaVuSans.ttf", l_size).render(piece_char[c][p], True,(0,0,0)),(0,0))
-			small_images[c].update({p : pygame.font.Font("data/DejaVuSans.ttf", s_size+1).render(piece_char["black"][p],True,(255,255,255))})
-			small_images[c][p].blit(pygame.font.Font("data/DejaVuSans.ttf", s_size).render(piece_char[c][p],True,(0,0,0)),(0,0))
+		#create_images(grid_sz)
+		create_images(grid_sz)
+
+		"""
+		for c in images.keys():
+			for p in images[c].keys():
+				images[c][p] = images[c][p].convert(self.window)
+				small_images[c][p] = small_images[c][p].convert(self.window)
+		"""
 
 		
 	
@@ -1085,10 +1194,13 @@ class GraphicsThread(StoppableThread):
 		
 		while not self.stopped():
 			
+			#print "Display grid"
 			self.board.display_grid(window = self.window, grid_sz = self.grid_sz) # Draw the board
 
+			#print "Display overlay"
 			self.overlay()
 
+			#print "Display pieces"
 			self.board.display_pieces(window = self.window, grid_sz = self.grid_sz) # Draw the board		
 
 			pygame.display.flip()
@@ -1238,7 +1350,7 @@ class GraphicsThread(StoppableThread):
 						mp = [self.grid_sz[i] * [x,y][i] for i in range(2)]
 						square_img.fill(pygame.Color(255,0,255,int(m[x][y] * 128))) # Draw in purple
 						self.window.blit(square_img, mp)
-						font = pygame.font.Font(None, 14)
+						font = pygame.font.Font(os.path.join(os.path.curdir, "data", "DejaVuSans.ttf"), 14)
 						text = font.render("{0:.2f}".format(round(m[x][y],2)), 1, pygame.Color(0,0,0))
 						self.window.blit(text, mp)
 				
@@ -1250,7 +1362,7 @@ class GraphicsThread(StoppableThread):
 				mp = [self.grid_sz[i] * [p.x,p.y][i] for i in range(2)]
 				square_img.fill(pygame.Color(0,255,255, int(m[p] * 196))) # Draw in pale blue
 				self.window.blit(square_img, mp)
-				font = pygame.font.Font(None, 14)
+				font = pygame.font.Font(os.path.join(os.path.curdir, "data", "DejaVuSans.ttf"), 14)
 				text = font.render("{0:.2f}".format(round(m[p],2)), 1, pygame.Color(0,0,0))
 				self.window.blit(text, mp)
 			# Draw a square where the mouse is
@@ -1273,8 +1385,9 @@ class GraphicsThread(StoppableThread):
 			self.window.blit(square_img, mp)
 
 	# Message in a bottle
-	def message(self, string, pos = None, colour = None, font_size = 32):
-		font = pygame.font.Font(None, font_size)
+	def message(self, string, pos = None, colour = None, font_size = 20):
+		#print "Drawing message..."
+		font = pygame.font.Font(os.path.join(os.path.curdir, "data", "DejaVuSans.ttf"), font_size)
 		if colour == None:
 			colour = pygame.Color(0,0,0)
 		
@@ -1332,11 +1445,13 @@ class GraphicsThread(StoppableThread):
 
 
 	# Function to pick a button
-	def SelectButton(self, choices, prompt = None, font_size=32):
+	def SelectButton(self, choices, prompt = None, font_size=20):
+
+		#print "Select button called!"
 		self.board.display_grid(self.window, self.grid_sz)
 		if prompt != None:
 			self.message(prompt)
-		font = pygame.font.Font(None, font_size)
+		font = pygame.font.Font(os.path.join(os.path.curdir, "data", "DejaVuSans.ttf"), font_size)
 		targets = []
 		sz = self.window.get_size()
 
@@ -1385,6 +1500,7 @@ class GraphicsThread(StoppableThread):
 	def SelectPlayers(self, players = []):
 
 
+		#print "SelectPlayers called"
 		
 		missing = ["white", "black"]
 		for p in players:
@@ -1393,11 +1509,11 @@ class GraphicsThread(StoppableThread):
 		for colour in missing:
 			
 			
-			choice = self.SelectButton(["human", "agent", "network"],prompt = "Choose " + str(colour) + " player", font_size=32)
+			choice = self.SelectButton(["human", "agent", "network"],prompt = "Choose " + str(colour) + " player")
 			if choice == 0:
 				players.append(HumanPlayer("human", colour))
 			elif choice == 1:
-				try:
+				if True:
 					import Tkinter
 					from tkFileDialog import askopenfilename
 					root = Tkinter.Tk() # Need a root to make Tkinter behave
@@ -1407,7 +1523,7 @@ class GraphicsThread(StoppableThread):
 					if path == "":
 						return self.SelectPlayers()
 					players.append(make_player(path, colour))	
-				except Exception,e:
+				else:
 					print "Exception was " + str(e.message)
 					p = None
 					while p == None:
@@ -1456,7 +1572,6 @@ class GraphicsThread(StoppableThread):
 				
 			
 # --- graphics.py --- #
-# +++ main.py +++ #
 #!/usr/bin/python -u
 
 # Do you know what the -u does? It unbuffers stdin and stdout
@@ -1558,11 +1673,8 @@ def main(argv):
 			# Timeout
 			if len(arg[2:].split("=")) == 1:
 				agent_timeout = -1
-			elif platform.system() != "Windows": # Windows breaks this option
-				agent_timeout = float(arg[2:].split("=")[1])
 			else:
-				sys.stderr.write(sys.argv[0] + " : Warning - You are using Windows\n")
-				agent_timeout = -1
+				agent_timeout = float(arg[2:].split("=")[1])
 				
 		elif (arg[1] == '-' and arg[2:] == "help"):
 			# Help
@@ -1578,6 +1690,7 @@ def main(argv):
 	if graphics_enabled == True:
 		try:
 			graphics = GraphicsThread(board, grid_sz = [64,64]) # Construct a GraphicsThread!
+
 		except Exception,e:
 			graphics = None
 			sys.stderr.write(sys.argv[0] + " : Got exception trying to initialise graphics\n"+str(e.message)+"\nDisabled graphics\n")
@@ -1617,6 +1730,22 @@ def main(argv):
 				graphics.message("Connecting to " + p.colour + " player...")
 			p.connect()
 
+	
+	# If using windows, select won't work; use horrible TimeoutPlayer hack
+	if agent_timeout > 0 and platform.system() == "Windows":
+		sys.stderr.write(sys.argv[0] + " : Warning - You are using Windows\n")
+		sys.stderr.write(sys.argv[0] + " :	   - Timeouts will be implemented with a terrible hack.\n")
+
+		for i in range(len(players)):
+			if isinstance(players[i], AgentPlayer):
+				players[i] = TimeoutPlayer(players[i], agent_timeout)
+
+	# Could potentially wrap TimeoutPlayer around internal classes...
+	# But that would suck
+
+		
+			
+
 
 	# Construct a GameThread! Make it global! Damn the consequences!
 	game = GameThread(board, players) 
@@ -1636,4 +1765,4 @@ def main(argv):
 if __name__ == "__main__":
 	sys.exit(main(sys.argv))
 # --- main.py --- #
-# EOF - created from make on Thu Jan 24 17:04:54 WST 2013
+# EOF - created from make on Mon Jan 28 22:52:28 WST 2013
