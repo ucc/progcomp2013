@@ -516,13 +516,16 @@ class Player():
 		self.name = name
 		self.colour = colour
 
+	def update(self, result):
+		pass
+
 # Player that runs from another process
-class AgentPlayer(Player):
+class ExternalAgent(Player):
 
 
 	def __init__(self, name, colour):
 		Player.__init__(self, name, colour)
-		self.p = subprocess.Popen(name, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+		self.p = subprocess.Popen(name,bufsize=0,stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True,universal_newlines=True)
 		
 		self.send_message(colour)
 
@@ -532,13 +535,13 @@ class AgentPlayer(Player):
 		else:
 			ready = [self.p.stdin]
 		if self.p.stdin in ready:
-			#print "Writing to p.stdin"
+			#sys.stderr.write("Writing \'" + s + "\' to " + str(self.p) + "\n")
 			try:
 				self.p.stdin.write(s + "\n")
 			except:
 				raise Exception("UNRESPONSIVE")
 		else:
-			raise Exception("UNRESPONSIVE")
+			raise Exception("TIMEOUT")
 
 	def get_response(self):
 		if agent_timeout > 0.0:
@@ -546,13 +549,15 @@ class AgentPlayer(Player):
 		else:
 			ready = [self.p.stdout]
 		if self.p.stdout in ready:
-			#print "Reading from p.stdout"
+			#sys.stderr.write("Reading from " + str(self.p) + " 's stdout...\n")
 			try:
-				return self.p.stdout.readline().strip("\r\n")
+				result = self.p.stdout.readline().strip("\r\n")
+				#sys.stderr.write("Read \'" + result + "\' from " + str(self.p) + "\n")
+				return result
 			except: # Exception, e:
 				raise Exception("UNRESPONSIVE")
 		else:
-			raise Exception("UNRESPONSIVE")
+			raise Exception("TIMEOUT")
 
 	def select(self):
 
@@ -648,13 +653,27 @@ class HumanPlayer(Player):
 			sys.stdout.write(result + "\n")	
 
 
-# Player that makes random moves
-class AgentRandom(Player):
+# Default internal player (makes random moves)
+class InternalAgent(Player):
 	def __init__(self, name, colour):
 		Player.__init__(self, name, colour)
 		self.choice = None
 
 		self.board = Board(style = "agent")
+
+
+
+	def update(self, result):
+		
+		self.board.update(result)
+		self.board.verify()
+
+	def quit(self, final_result):
+		pass
+
+class AgentRandom(InternalAgent):
+	def __init__(self, name, colour):
+		InternalAgent.__init__(self, name, colour)
 
 	def select(self):
 		while True:
@@ -680,21 +699,229 @@ class AgentRandom(Player):
 		move = moves[random.randint(0, len(moves)-1)]
 		return move
 
-	def update(self, result):
-		#sys.stderr.write(sys.argv[0] + " : Update board for AgentRandom\n")
-		self.board.update(result)
-		self.board.verify()
 
-	def quit(self, final_result):
-		pass
+# Terrible, terrible hacks
 
+def run_agent(agent):
+	#sys.stderr.write(sys.argv[0] + " : Running agent " + str(agent) + "\n")
+	colour = sys.stdin.readline().strip(" \r\n")
+	agent.colour = colour
+	while True:
+		line = sys.stdin.readline().strip(" \r\n")
+		if line == "SELECTION?":
+			#sys.stderr.write(sys.argv[0] + " : Make selection\n")
+			[x,y] = agent.select() # Gets your agent's selection
+			#sys.stderr.write(sys.argv[0] + " : Selection was " + str(agent.choice) + "\n")
+			sys.stdout.write(str(x) + " " + str(y) + "\n")				
+		elif line == "MOVE?":
+			#sys.stderr.write(sys.argv[0] + " : Make move\n")
+			[x,y] = agent.get_move() # Gets your agent's move
+			sys.stdout.write(str(x) + " " + str(y) + "\n")
+		elif line.split(" ")[0] == "QUIT":
+			#sys.stderr.write(sys.argv[0] + " : Quitting\n")
+			agent.quit(" ".join(line.split(" ")[1:])) # Quits the game
+			break
+		else:
+			agent.update(line) # Updates agent.board
+	return 0
+
+
+# Sort of works?
+
+class ExternalWrapper(ExternalAgent):
+	def __init__(self, agent):
+		run = "python -u -c \"import sys;import os;from qchess import *;agent = " + agent.__class__.__name__ + "('" + agent.name + "','"+agent.colour+"');sys.exit(run_agent(agent))\""
+		# str(run)
+		ExternalAgent.__init__(self, run, agent.colour)
+
+	
 
 # --- player.py --- #
+# A sample agent
+
+
+class AgentBishop(InternalAgent): # Inherits from InternalAgent (in qchess)
+	def __init__(self, name, colour):
+		InternalAgent.__init__(self, name, colour)
+		self.value = {"pawn" : 1, "bishop" : 3, "knight" : 3, "rook" : 5, "queen" : 9, "king" : 100, "unknown" : 4}
+
+		self.aggression = 2.0 # Multiplier for scoring due to aggressive actions
+		self.defence = 1.0 # Multiplier for scoring due to defensive actions
+		
+		self.depth = 0 # Current depth
+		self.max_depth = 2 # Recurse this many times (for some reason, makes more mistakes when this is increased???)
+		self.recurse_for = -1 # Recurse for the best few moves each times (less than 0 = all moves)
+
+		for p in self.board.pieces["white"] + self.board.pieces["black"]:
+			p.last_moves = None
+			p.selected_moves = None
+
+		
+
+	def get_value(self, piece):
+		if piece == None:
+			return 0.0
+		return float(self.value[piece.types[0]] + self.value[piece.types[1]]) / 2.0
+		
+	# Score possible moves for the piece
+	
+	def prioritise_moves(self, piece):
+
+		#sys.stderr.write(sys.argv[0] + " : " + str(self) + " prioritise called for " + str(piece) + "\n")
+
+		
+		
+		grid = self.board.probability_grid(piece)
+		#sys.stderr.write("\t Probability grid " + str(grid) + "\n")
+		moves = []
+		for x in range(w):
+			for y in range(h):
+				if grid[x][y] < 0.3: # Throw out moves with < 30% probability
+					#sys.stderr.write("\tReject " + str(x) + "," + str(y) + " (" + str(grid[x][y]) + ")\n")
+					continue
+
+				target = self.board.grid[x][y]
+			
+				
+				
+				
+				# Get total probability that the move is protected
+				[xx,yy] = [piece.x, piece.y]
+				[piece.x, piece.y] = [x, y]
+				self.board.grid[x][y] = piece
+				self.board.grid[xx][yy] = None
+				
+				defenders = self.board.coverage(x, y, piece.colour, reject_allied = False)
+				d_prob = 0.0
+				for d in defenders.keys():
+					d_prob += defenders[d]
+				if len(defenders.keys()) > 0:
+					d_prob /= float(len(defenders.keys()))
+
+				if (d_prob > 1.0):
+					d_prob = 1.0
+
+				# Get total probability that the move is threatened
+				attackers = self.board.coverage(x, y, opponent(piece.colour), reject_allied = False)
+				a_prob = 0.0
+				for a in attackers.keys():
+					a_prob += attackers[a]
+				if len(attackers.keys()) > 0:
+					a_prob /= float(len(attackers.keys()))
+
+				if (a_prob > 1.0):
+					a_prob = 1.0
+
+				self.board.grid[x][y] = target
+				self.board.grid[xx][yy] = piece
+				[piece.x, piece.y] = [xx, yy]
+
+				
+				# Score of the move
+				value = self.aggression * (1.0 + d_prob) * self.get_value(target) - self.defence * (1.0 - d_prob) * a_prob * self.get_value(piece)
+
+				# Adjust score based on movement of piece out of danger
+				attackers = self.board.coverage(piece.x, piece.y, opponent(piece.colour))
+				s_prob = 0.0
+				for a in attackers.keys():
+					s_prob += attackers[a]
+				if len(attackers.keys()) > 0:
+					s_prob /= float(len(attackers.keys()))
+
+				if (s_prob > 1.0):
+					s_prob = 1.0
+				value += self.defence * s_prob * self.get_value(piece)
+				
+				# Adjust score based on probability that the move is actually possible
+				moves.append([[x, y], grid[x][y] * value])
+
+		moves.sort(key = lambda e : e[1], reverse = True)
+		#sys.stderr.write(sys.argv[0] + ": Moves for " + str(piece) + " are " + str(moves) + "\n")
+
+		piece.last_moves = moves
+		piece.selected_moves = None
+
+		
+
+		
+		return moves
+
+	def select_best(self, colour):
+
+		self.depth += 1
+		all_moves = {}
+		for p in self.board.pieces[colour]:
+			self.choice = p # Temporarily pick that piece
+			m = self.prioritise_moves(p)
+			if len(m) > 0:
+				all_moves.update({p : m[0]})
+
+		if len(all_moves.items()) <= 0:
+			return None
+		
+		
+		opts = all_moves.items()
+		opts.sort(key = lambda e : e[1][1], reverse = True)
+
+		if self.depth >= self.max_depth:
+			self.depth -= 1
+			return list(opts[0])
+
+		if self.recurse_for >= 0:
+			opts = opts[0:self.recurse_for]
+		#sys.stderr.write(sys.argv[0] + " : Before recurse, options are " + str(opts) + "\n")
+
+		# Take the best few moves, and recurse
+		for choice in opts[0:self.recurse_for]:
+			[xx,yy] = [choice[0].x, choice[0].y] # Remember position
+			[nx,ny] = choice[1][0] # Target
+			[choice[0].x, choice[0].y] = [nx, ny] # Set position
+			target = self.board.grid[nx][ny] # Remember piece in spot
+			self.board.grid[xx][yy] = None # Remove piece
+			self.board.grid[nx][ny] = choice[0] # Replace with moving piece
+			
+			# Recurse
+			best_enemy_move = self.select_best(opponent(choice[0].colour))
+			choice[1][1] -= best_enemy_move[1][1] / float(self.depth + 1.0)
+			
+			[choice[0].x, choice[0].y] = [xx, yy] # Restore position
+			self.board.grid[nx][ny] = target # Restore taken piece
+			self.board.grid[xx][yy] = choice[0] # Restore moved piece
+			
+		
+
+		opts.sort(key = lambda e : e[1][1], reverse = True)
+		#sys.stderr.write(sys.argv[0] + " : After recurse, options are " + str(opts) + "\n")
+
+		self.depth -= 1
+		return list(opts[0])
+
+		
+
+	# Returns [x,y] of selected piece
+	def select(self):
+		#sys.stderr.write("Getting choice...")
+		self.choice = self.select_best(self.colour)[0]
+		#sys.stderr.write(" Done " + str(self.choice)+"\n")
+		return [self.choice.x, self.choice.y]
+	
+	# Returns [x,y] of square to move selected piece into
+	def get_move(self):
+		#sys.stderr.write("Choice is " + str(self.choice) + "\n")
+		self.choice.selected_moves = self.choice.last_moves
+		moves = self.prioritise_moves(self.choice)
+		if len(moves) > 0:
+			return moves[0][0]
+		else:
+			return InternalAgent.get_move(self)
+
+# --- agent_bishop.py --- #
 import multiprocessing
 
 # Hacky alternative to using select for timing out players
 
 # WARNING: Do not wrap around HumanPlayer or things breakify
+# WARNING: Do not use in general or things breakify
 
 class Sleeper(multiprocessing.Process):
 	def __init__(self, timeout):
@@ -734,7 +961,7 @@ def TimeoutFunction(function, args, timeout):
 		elif not s.is_alive():
 			w.terminate()
 			s.join()
-			raise Exception("UNRESPONSIVE")
+			raise Exception("TIMEOUT")
 
 	
 		
@@ -970,6 +1197,17 @@ class StoppableThread(threading.Thread):
 		return self._stop.isSet()
 # --- thread_util.py --- #
 
+
+log_file = None
+
+def log(s):
+	if log_file != None:
+		import datetime
+		log_file.write(str(datetime.datetime.now()) + " : " + s + "\n")
+
+
+	
+
 # A thread that runs the game
 class GameThread(StoppableThread):
 	def __init__(self, board, players):
@@ -1007,6 +1245,7 @@ class GameThread(StoppableThread):
 						p2.update(result) # Inform players of what happened
 
 
+					log(result)
 
 					target = self.board.grid[x][y]
 					if isinstance(graphics, GraphicsThread):
@@ -1035,9 +1274,12 @@ class GameThread(StoppableThread):
 					if self.stopped():
 						break
 
-					result = self.board.update_move(x, y, x2, y2)
+					self.board.update_move(x, y, x2, y2)
+					result = str(x) + " " + str(y) + " -> " + str(x2) + " " + str(y2)
 					for p2 in self.players:
-						p2.update(str(x) + " " + str(y) + " -> " + str(x2) + " " + str(y2)) # Inform players of what happened
+						p2.update(result) # Inform players of what happened
+
+					log(result)
 
 					if isinstance(graphics, GraphicsThread):
 						with graphics.lock:
@@ -1081,10 +1323,80 @@ class GameThread(StoppableThread):
 		for p2 in self.players:
 			p2.quit(self.final_result)
 
+		log(self.final_result)
+
 		graphics.stop()
 
 	
+# A thread that replays a log file
+class ReplayThread(GameThread):
+	def __init__(self, players, src):
+		self.board = Board(style="agent")
+		GameThread.__init__(self, self.board, players)
+		self.src = src
 
+		self.ended = False
+	
+	def run(self):
+		i = 0
+		phase = 0
+		for line in self.src:
+
+			if self.stopped():
+				self.ended = True
+				break
+
+			with self.lock:
+				self.state["turn"] = self.players[i]
+
+			line = line.split(":")
+			result = line[len(line)-1].strip(" \r\n")
+			log(result)
+
+			try:
+				self.board.update(result)
+			except:
+				self.ended = True
+				self.final_result = result
+				if isinstance(graphics, GraphicsThread):
+					graphics.stop()
+				break
+
+			[x,y] = map(int, result.split(" ")[0:2])
+			target = self.board.grid[x][y]
+
+			if isinstance(graphics, GraphicsThread):
+				if phase == 0:
+					with graphics.lock:
+						graphics.state["moves"] = self.board.possible_moves(target)
+						graphics.state["select"] = target
+
+					time.sleep(turn_delay)
+
+				elif phase == 1:
+					[x2,y2] = map(int, result.split(" ")[3:5])
+					with graphics.lock:
+						graphics.state["moves"] = [[x2,y2]]
+
+					time.sleep(turn_delay)
+
+					with graphics.lock:
+						graphics.state["select"] = None
+						graphics.state["dest"] = None
+						graphics.state["moves"] = None
+						
+
+
+			
+
+			for p in self.players:
+				p.update(result)
+			
+			phase = (phase + 1) % 2
+			if phase == 0:
+				i = (i + 1) % 2
+
+		
 
 def opponent(colour):
 	if colour == "white":
@@ -1144,13 +1456,12 @@ def load_images(image_dir=os.path.join(os.path.curdir, "data", "images")):
 			images[c].update({p : pygame.image.load(os.path.join(image_dir, c + "_" + p + ".png"))})
 			small_images[c].update({p : pygame.image.load(os.path.join(image_dir, c + "_" + p + "_small.png"))})
 # --- images.py --- #
-import pygame
-
-
-
-
-
-
+graphics_enabled = True
+try:
+	import pygame
+except:
+	graphics_enabled = False
+	
 
 
 
@@ -1513,38 +1824,51 @@ class GraphicsThread(StoppableThread):
 			if choice == 0:
 				players.append(HumanPlayer("human", colour))
 			elif choice == 1:
-				if True:
-					import Tkinter
-					from tkFileDialog import askopenfilename
-					root = Tkinter.Tk() # Need a root to make Tkinter behave
-					root.withdraw() # Some sort of magic incantation
-					path = askopenfilename(parent=root, initialdir="../agents",title=
-'Choose an agent.')
-					if path == "":
-						return self.SelectPlayers()
-					players.append(make_player(path, colour))	
+				import inspect
+				internal_agents = inspect.getmembers(sys.modules[__name__], inspect.isclass)
+				internal_agents = [x for x in internal_agents if issubclass(x[1], InternalAgent)]
+				internal_agents.remove(('InternalAgent', InternalAgent)) 
+				if len(internal_agents) > 0:
+					choice2 = self.SelectButton(["internal", "external"], prompt="Type of agent")
 				else:
-					print "Exception was " + str(e.message)
-					p = None
-					while p == None:
-						self.board.display_grid(self.window, self.grid_sz)
-						pygame.display.flip()
-						path = self.getstr(prompt = "Enter path:")
-						if path == None:
-							return None
+					choice2 = 1
 
+				if choice2 == 0:
+					agent = internal_agents[self.SelectButton(map(lambda e : e[0], internal_agents), prompt="Choose internal agent")]
+					players.append(agent[1](agent[0], colour))					
+				elif choice2 == 1:
+					try:
+						import Tkinter
+						from tkFileDialog import askopenfilename
+						root = Tkinter.Tk() # Need a root to make Tkinter behave
+						root.withdraw() # Some sort of magic incantation
+						path = askopenfilename(parent=root, initialdir="../agents",title=
+'Choose an agent.')
 						if path == "":
 							return self.SelectPlayers()
-
-						try:
-							p = make_player(path, colour)
-						except:
+						players.append(make_player(path, colour))	
+					except:
+						
+						p = None
+						while p == None:
 							self.board.display_grid(self.window, self.grid_sz)
 							pygame.display.flip()
-							self.message("Invalid path!")
-							time.sleep(1)
-							p = None
-					players.append(p)
+							path = self.getstr(prompt = "Enter path:")
+							if path == None:
+								return None
+	
+							if path == "":
+								return self.SelectPlayers()
+	
+							try:
+								p = make_player(path, colour)
+							except:
+								self.board.display_grid(self.window, self.grid_sz)
+								pygame.display.flip()
+								self.message("Invalid path!")
+								time.sleep(1)
+								p = None
+						players.append(p)
 			elif choice == 2:
 				address = ""
 				while address == "":
@@ -1602,9 +1926,29 @@ def make_player(name, colour):
 			if len(s) > 1:
 				address = s[1]
 			return NetworkReceiver(colour, address)
+		if s[0] == "internal":
+
+			import inspect
+			internal_agents = inspect.getmembers(sys.modules[__name__], inspect.isclass)
+			internal_agents = [x for x in internal_agents if issubclass(x[1], InternalAgent)]
+			internal_agents.remove(('InternalAgent', InternalAgent)) 
+			
+			if len(s) != 2:
+				sys.stderr.write(sys.argv[0] + " : '@internal' should be followed by ':' and an agent name\n")
+				sys.stderr.write(sys.argv[0] + " : Choices are: " + str(map(lambda e : e[0], internal_agents)) + "\n")
+				return None
+
+			for a in internal_agents:
+				if s[1] == a[0]:
+					return a[1](name, colour)
+			
+			sys.stderr.write(sys.argv[0] + " : Can't find an internal agent matching \"" + s[1] + "\"\n")
+			sys.stderr.write(sys.argv[0] + " : Choices are: " + str(map(lambda e : e[0], internal_agents)) + "\n")
+			return None
+			
 
 	else:
-		return AgentPlayer(name, colour)
+		return ExternalAgent(name, colour)
 			
 
 
@@ -1620,13 +1964,20 @@ def main(argv):
 	global agent_timeout
 	global log_file
 	global src_file
+	global graphics_enabled
 
 
-
+	src_file = None
 	
 	style = "quantum"
 	colour = "white"
-	graphics_enabled = True
+
+	# Get the important warnings out of the way
+	if platform.system() == "Windows":
+		sys.stderr.write(sys.argv[0] + " : Warning - You are using " + platform.system() + "\n")
+		if platform.release() == "Vista":
+			sys.stderr.write(sys.argv[0] + " : God help you.\n")
+	
 
 	players = []
 	i = 0
@@ -1634,7 +1985,11 @@ def main(argv):
 		i += 1
 		arg = argv[i]
 		if arg[0] != '-':
-			players.append(make_player(arg, colour))
+			p = make_player(arg, colour)
+			if not isinstance(p, Player):
+				sys.stderr.write(sys.argv[0] + " : Fatal error creating " + colour + " player\n")
+				return 100
+			players.append(p)
 			if colour == "white":
 				colour = "black"
 			elif colour == "black":
@@ -1653,15 +2008,15 @@ def main(argv):
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "file"):
 			# Load game from file
 			if len(arg[2:].split("=")) == 1:
-				src_file = sys.stdout
+				src_file = sys.stdin
 			else:
-				src_file = arg[2:].split("=")[1]
+				src_file = open(arg[2:].split("=")[1])
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
 			# Log file
 			if len(arg[2:].split("=")) == 1:
 				log_file = sys.stdout
 			else:
-				log_file = arg[2:].split("=")[1]
+				log_file = open(arg[2:].split("=")[1], "w")
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "delay"):
 			# Delay
 			if len(arg[2:].split("=")) == 1:
@@ -1683,13 +2038,23 @@ def main(argv):
 
 
 	# Create the board
-	board = Board(style)
+	
+	# Construct a GameThread! Make it global! Damn the consequences!
+			
+	if src_file != None:
+		if len(players) == 0:
+			players = [Player("dummy", "white"), Player("dummy", "black")]
+		game = ReplayThread(players, src_file)
+	else:
+		board = Board(style)
+		game = GameThread(board, players) 
+
 
 
 	# Initialise GUI
 	if graphics_enabled == True:
 		try:
-			graphics = GraphicsThread(board, grid_sz = [64,64]) # Construct a GraphicsThread!
+			graphics = GraphicsThread(game.board, grid_sz = [64,64]) # Construct a GraphicsThread!
 
 		except Exception,e:
 			graphics = None
@@ -1732,23 +2097,24 @@ def main(argv):
 
 	
 	# If using windows, select won't work; use horrible TimeoutPlayer hack
-	if agent_timeout > 0 and platform.system() == "Windows":
-		sys.stderr.write(sys.argv[0] + " : Warning - You are using Windows\n")
-		sys.stderr.write(sys.argv[0] + " :	   - Timeouts will be implemented with a terrible hack.\n")
+	if agent_timeout > 0:
+		if platform.system() == "Windows":
+			for i in range(len(players)):
+				if isinstance(players[i], ExternalAgent) or isinstance(players[i], InternalAgent):
+					players[i] = TimeoutPlayer(players[i], agent_timeout)
 
-		for i in range(len(players)):
-			if isinstance(players[i], AgentPlayer):
-				players[i] = TimeoutPlayer(players[i], agent_timeout)
+		else:
+			warned = False
+			# InternalAgents get wrapped to an ExternalAgent when there is a timeout
+			# This is not confusing at all.
+			for i in range(len(players)):
+				if isinstance(players[i], InternalAgent):
+						players[i] = ExternalWrapper(players[i])
 
-	# Could potentially wrap TimeoutPlayer around internal classes...
-	# But that would suck
 
 		
-			
 
 
-	# Construct a GameThread! Make it global! Damn the consequences!
-	game = GameThread(board, players) 
 
 
 	
@@ -1756,13 +2122,21 @@ def main(argv):
 		game.start() # This runs in a new thread
 		graphics.run()
 		game.join()
-		return game.error + graphics.error
+		error = game.error + graphics.error
 	else:
 		game.run()
-		return game.error
+		error = game.error
+
+	if log_file != None and log_file != sys.stdout:
+		log_file.close()
+
+	if src_file != None and src_file != sys.stdin:
+		src_file.close()
+
+	return error
 
 # This is how python does a main() function...
 if __name__ == "__main__":
 	sys.exit(main(sys.argv))
 # --- main.py --- #
-# EOF - created from make on Mon Jan 28 22:52:28 WST 2013
+# EOF - created from make on Tue Jan 29 18:10:18 WST 2013

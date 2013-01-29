@@ -15,13 +15,16 @@ class Player():
 		self.name = name
 		self.colour = colour
 
+	def update(self, result):
+		pass
+
 # Player that runs from another process
-class AgentPlayer(Player):
+class ExternalAgent(Player):
 
 
 	def __init__(self, name, colour):
 		Player.__init__(self, name, colour)
-		self.p = subprocess.Popen(name, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+		self.p = subprocess.Popen(name,bufsize=0,stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True,universal_newlines=True)
 		
 		self.send_message(colour)
 
@@ -31,13 +34,13 @@ class AgentPlayer(Player):
 		else:
 			ready = [self.p.stdin]
 		if self.p.stdin in ready:
-			#print "Writing to p.stdin"
+			#sys.stderr.write("Writing \'" + s + "\' to " + str(self.p) + "\n")
 			try:
 				self.p.stdin.write(s + "\n")
 			except:
 				raise Exception("UNRESPONSIVE")
 		else:
-			raise Exception("UNRESPONSIVE")
+			raise Exception("TIMEOUT")
 
 	def get_response(self):
 		if agent_timeout > 0.0:
@@ -45,13 +48,15 @@ class AgentPlayer(Player):
 		else:
 			ready = [self.p.stdout]
 		if self.p.stdout in ready:
-			#print "Reading from p.stdout"
+			#sys.stderr.write("Reading from " + str(self.p) + " 's stdout...\n")
 			try:
-				return self.p.stdout.readline().strip("\r\n")
+				result = self.p.stdout.readline().strip("\r\n")
+				#sys.stderr.write("Read \'" + result + "\' from " + str(self.p) + "\n")
+				return result
 			except: # Exception, e:
 				raise Exception("UNRESPONSIVE")
 		else:
-			raise Exception("UNRESPONSIVE")
+			raise Exception("TIMEOUT")
 
 	def select(self):
 
@@ -147,13 +152,27 @@ class HumanPlayer(Player):
 			sys.stdout.write(result + "\n")	
 
 
-# Player that makes random moves
-class AgentRandom(Player):
+# Default internal player (makes random moves)
+class InternalAgent(Player):
 	def __init__(self, name, colour):
 		Player.__init__(self, name, colour)
 		self.choice = None
 
 		self.board = Board(style = "agent")
+
+
+
+	def update(self, result):
+		
+		self.board.update(result)
+		self.board.verify()
+
+	def quit(self, final_result):
+		pass
+
+class AgentRandom(InternalAgent):
+	def __init__(self, name, colour):
+		InternalAgent.__init__(self, name, colour)
 
 	def select(self):
 		while True:
@@ -179,12 +198,40 @@ class AgentRandom(Player):
 		move = moves[random.randint(0, len(moves)-1)]
 		return move
 
-	def update(self, result):
-		#sys.stderr.write(sys.argv[0] + " : Update board for AgentRandom\n")
-		self.board.update(result)
-		self.board.verify()
 
-	def quit(self, final_result):
-		pass
+# Terrible, terrible hacks
 
+def run_agent(agent):
+	#sys.stderr.write(sys.argv[0] + " : Running agent " + str(agent) + "\n")
+	colour = sys.stdin.readline().strip(" \r\n")
+	agent.colour = colour
+	while True:
+		line = sys.stdin.readline().strip(" \r\n")
+		if line == "SELECTION?":
+			#sys.stderr.write(sys.argv[0] + " : Make selection\n")
+			[x,y] = agent.select() # Gets your agent's selection
+			#sys.stderr.write(sys.argv[0] + " : Selection was " + str(agent.choice) + "\n")
+			sys.stdout.write(str(x) + " " + str(y) + "\n")				
+		elif line == "MOVE?":
+			#sys.stderr.write(sys.argv[0] + " : Make move\n")
+			[x,y] = agent.get_move() # Gets your agent's move
+			sys.stdout.write(str(x) + " " + str(y) + "\n")
+		elif line.split(" ")[0] == "QUIT":
+			#sys.stderr.write(sys.argv[0] + " : Quitting\n")
+			agent.quit(" ".join(line.split(" ")[1:])) # Quits the game
+			break
+		else:
+			agent.update(line) # Updates agent.board
+	return 0
+
+
+# Sort of works?
+
+class ExternalWrapper(ExternalAgent):
+	def __init__(self, agent):
+		run = "python -u -c \"import sys;import os;from qchess import *;agent = " + agent.__class__.__name__ + "('" + agent.name + "','"+agent.colour+"');sys.exit(run_agent(agent))\""
+		# str(run)
+		ExternalAgent.__init__(self, run, agent.colour)
+
+	
 

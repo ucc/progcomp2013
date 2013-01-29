@@ -42,6 +42,18 @@ ARGUMENTS
 
 			IMPORTANT: Only ONE of the games should give the other's address.
 
+		@internal:name
+			An internal agent player
+
+			These agents run within the qchess program (unless there is a timeout setting... never mind).
+			
+			Choices are:
+			
+			AgentRandom - Makes random moves only
+
+			AgentBishop - Uses probability estimates and a min/max recursive (depth is only one) algorithm
+				    - Will usually take a long time to run
+
 OPTIONS
 
 	--help

@@ -1,10 +1,9 @@
-import pygame
-
-
-
-
-
-
+graphics_enabled = True
+try:
+	import pygame
+except:
+	graphics_enabled = False
+	
 
 
 
@@ -367,38 +366,51 @@ class GraphicsThread(StoppableThread):
 			if choice == 0:
 				players.append(HumanPlayer("human", colour))
 			elif choice == 1:
-				if True:
-					import Tkinter
-					from tkFileDialog import askopenfilename
-					root = Tkinter.Tk() # Need a root to make Tkinter behave
-					root.withdraw() # Some sort of magic incantation
-					path = askopenfilename(parent=root, initialdir="../agents",title=
-'Choose an agent.')
-					if path == "":
-						return self.SelectPlayers()
-					players.append(make_player(path, colour))	
+				import inspect
+				internal_agents = inspect.getmembers(sys.modules[__name__], inspect.isclass)
+				internal_agents = [x for x in internal_agents if issubclass(x[1], InternalAgent)]
+				internal_agents.remove(('InternalAgent', InternalAgent)) 
+				if len(internal_agents) > 0:
+					choice2 = self.SelectButton(["internal", "external"], prompt="Type of agent")
 				else:
-					print "Exception was " + str(e.message)
-					p = None
-					while p == None:
-						self.board.display_grid(self.window, self.grid_sz)
-						pygame.display.flip()
-						path = self.getstr(prompt = "Enter path:")
-						if path == None:
-							return None
+					choice2 = 1
 
+				if choice2 == 0:
+					agent = internal_agents[self.SelectButton(map(lambda e : e[0], internal_agents), prompt="Choose internal agent")]
+					players.append(agent[1](agent[0], colour))					
+				elif choice2 == 1:
+					try:
+						import Tkinter
+						from tkFileDialog import askopenfilename
+						root = Tkinter.Tk() # Need a root to make Tkinter behave
+						root.withdraw() # Some sort of magic incantation
+						path = askopenfilename(parent=root, initialdir="../agents",title=
+'Choose an agent.')
 						if path == "":
 							return self.SelectPlayers()
-
-						try:
-							p = make_player(path, colour)
-						except:
+						players.append(make_player(path, colour))	
+					except:
+						
+						p = None
+						while p == None:
 							self.board.display_grid(self.window, self.grid_sz)
 							pygame.display.flip()
-							self.message("Invalid path!")
-							time.sleep(1)
-							p = None
-					players.append(p)
+							path = self.getstr(prompt = "Enter path:")
+							if path == None:
+								return None
+	
+							if path == "":
+								return self.SelectPlayers()
+	
+							try:
+								p = make_player(path, colour)
+							except:
+								self.board.display_grid(self.window, self.grid_sz)
+								pygame.display.flip()
+								self.message("Invalid path!")
+								time.sleep(1)
+								p = None
+						players.append(p)
 			elif choice == 2:
 				address = ""
 				while address == "":

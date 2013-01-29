@@ -28,9 +28,29 @@ def make_player(name, colour):
 			if len(s) > 1:
 				address = s[1]
 			return NetworkReceiver(colour, address)
+		if s[0] == "internal":
+
+			import inspect
+			internal_agents = inspect.getmembers(sys.modules[__name__], inspect.isclass)
+			internal_agents = [x for x in internal_agents if issubclass(x[1], InternalAgent)]
+			internal_agents.remove(('InternalAgent', InternalAgent)) 
+			
+			if len(s) != 2:
+				sys.stderr.write(sys.argv[0] + " : '@internal' should be followed by ':' and an agent name\n")
+				sys.stderr.write(sys.argv[0] + " : Choices are: " + str(map(lambda e : e[0], internal_agents)) + "\n")
+				return None
+
+			for a in internal_agents:
+				if s[1] == a[0]:
+					return a[1](name, colour)
+			
+			sys.stderr.write(sys.argv[0] + " : Can't find an internal agent matching \"" + s[1] + "\"\n")
+			sys.stderr.write(sys.argv[0] + " : Choices are: " + str(map(lambda e : e[0], internal_agents)) + "\n")
+			return None
+			
 
 	else:
-		return AgentPlayer(name, colour)
+		return ExternalAgent(name, colour)
 			
 
 
@@ -46,13 +66,20 @@ def main(argv):
 	global agent_timeout
 	global log_file
 	global src_file
+	global graphics_enabled
 
 
-
+	src_file = None
 	
 	style = "quantum"
 	colour = "white"
-	graphics_enabled = True
+
+	# Get the important warnings out of the way
+	if platform.system() == "Windows":
+		sys.stderr.write(sys.argv[0] + " : Warning - You are using " + platform.system() + "\n")
+		if platform.release() == "Vista":
+			sys.stderr.write(sys.argv[0] + " : God help you.\n")
+	
 
 	players = []
 	i = 0
@@ -60,7 +87,11 @@ def main(argv):
 		i += 1
 		arg = argv[i]
 		if arg[0] != '-':
-			players.append(make_player(arg, colour))
+			p = make_player(arg, colour)
+			if not isinstance(p, Player):
+				sys.stderr.write(sys.argv[0] + " : Fatal error creating " + colour + " player\n")
+				return 100
+			players.append(p)
 			if colour == "white":
 				colour = "black"
 			elif colour == "black":
@@ -79,15 +110,15 @@ def main(argv):
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "file"):
 			# Load game from file
 			if len(arg[2:].split("=")) == 1:
-				src_file = sys.stdout
+				src_file = sys.stdin
 			else:
-				src_file = arg[2:].split("=")[1]
+				src_file = open(arg[2:].split("=")[1])
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
 			# Log file
 			if len(arg[2:].split("=")) == 1:
 				log_file = sys.stdout
 			else:
-				log_file = arg[2:].split("=")[1]
+				log_file = open(arg[2:].split("=")[1], "w")
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "delay"):
 			# Delay
 			if len(arg[2:].split("=")) == 1:
@@ -109,13 +140,23 @@ def main(argv):
 
 
 	# Create the board
-	board = Board(style)
+	
+	# Construct a GameThread! Make it global! Damn the consequences!
+			
+	if src_file != None:
+		if len(players) == 0:
+			players = [Player("dummy", "white"), Player("dummy", "black")]
+		game = ReplayThread(players, src_file)
+	else:
+		board = Board(style)
+		game = GameThread(board, players) 
+
 
 
 	# Initialise GUI
 	if graphics_enabled == True:
 		try:
-			graphics = GraphicsThread(board, grid_sz = [64,64]) # Construct a GraphicsThread!
+			graphics = GraphicsThread(game.board, grid_sz = [64,64]) # Construct a GraphicsThread!
 
 		except Exception,e:
 			graphics = None
@@ -158,23 +199,24 @@ def main(argv):
 
 	
 	# If using windows, select won't work; use horrible TimeoutPlayer hack
-	if agent_timeout > 0 and platform.system() == "Windows":
-		sys.stderr.write(sys.argv[0] + " : Warning - You are using Windows\n")
-		sys.stderr.write(sys.argv[0] + " :	   - Timeouts will be implemented with a terrible hack.\n")
+	if agent_timeout > 0:
+		if platform.system() == "Windows":
+			for i in range(len(players)):
+				if isinstance(players[i], ExternalAgent) or isinstance(players[i], InternalAgent):
+					players[i] = TimeoutPlayer(players[i], agent_timeout)
 
-		for i in range(len(players)):
-			if isinstance(players[i], AgentPlayer):
-				players[i] = TimeoutPlayer(players[i], agent_timeout)
+		else:
+			warned = False
+			# InternalAgents get wrapped to an ExternalAgent when there is a timeout
+			# This is not confusing at all.
+			for i in range(len(players)):
+				if isinstance(players[i], InternalAgent):
+						players[i] = ExternalWrapper(players[i])
 
-	# Could potentially wrap TimeoutPlayer around internal classes...
-	# But that would suck
 
 		
-			
 
 
-	# Construct a GameThread! Make it global! Damn the consequences!
-	game = GameThread(board, players) 
 
 
 	
@@ -182,10 +224,18 @@ def main(argv):
 		game.start() # This runs in a new thread
 		graphics.run()
 		game.join()
-		return game.error + graphics.error
+		error = game.error + graphics.error
 	else:
 		game.run()
-		return game.error
+		error = game.error
+
+	if log_file != None and log_file != sys.stdout:
+		log_file.close()
+
+	if src_file != None and src_file != sys.stdin:
+		src_file.close()
+
+	return error
 
 # This is how python does a main() function...
 if __name__ == "__main__":

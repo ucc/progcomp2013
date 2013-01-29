@@ -6,7 +6,7 @@ DLL_PATH=win32_dll
 all : python_native frozen
 
 frozen : win32_frozen linux64_frozen
-	cd build; for d in $$(ls); do zip -r $$d.zip $$d; rm -r $$d; done
+	cd build; for d in $$(ls); do if [ -d $$d ]; then zip -r $$d.zip $$d; rm -r $$d; fi; done
 
 python_native : 
 	make -C src

@@ -3,6 +3,7 @@ import multiprocessing
 # Hacky alternative to using select for timing out players
 
 # WARNING: Do not wrap around HumanPlayer or things breakify
+# WARNING: Do not use in general or things breakify
 
 class Sleeper(multiprocessing.Process):
 	def __init__(self, timeout):
@@ -42,7 +43,7 @@ def TimeoutFunction(function, args, timeout):
 		elif not s.is_alive():
 			w.terminate()
 			s.join()
-			raise Exception("UNRESPONSIVE")
+			raise Exception("TIMEOUT")
 
 	
 		
