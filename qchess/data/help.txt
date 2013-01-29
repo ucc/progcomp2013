@@ -64,9 +64,23 @@ OPTIONS
 
 		If graphics are enabled (default), then the user will be prompted to choose any of the two players not supplied as arguments.
 		
+	--reveal
+		If graphics are enabled, the two states for pieces will always be shown, regardless of whether both states have been revealed.
+		Note that this switch only affects the GUI and does not provide any information to agent players.
 
-	--file[=filename]
+		If graphics are disabled, has no effect.
+
+	--file[=filename][:events]
 		Replay a game saved in file, or read from stdin if no filename given
+		If a number of events is supplied, the game will advance that many events before stopping.
+
+		If no players are given, the GUI will NOT ask for player selections.
+		The game will exit after the replay finishes. Events in the replay will be subject to the normal delay (see --delay).
+
+		If black and white players are supplied, the game will continue using those players.
+		In this case, there will be no delays between events in the replay (the game starts at the end of the replay)
+
+		(We hope that) this feature will be useful for comparing how different versions of an agent respond to the same situation.
 
 	--log[=filename]
 		Log moves to a file or stdout if no filename given

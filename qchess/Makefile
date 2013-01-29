@@ -3,14 +3,16 @@
 SCRIPT=qchess.py
 DLL_PATH=win32_dll
 
+python_native : 
+	make -C src
+	mv src/$(SCRIPT) ./
+
+
 all : python_native frozen
 
 frozen : win32_frozen linux64_frozen
 	cd build; for d in $$(ls); do if [ -d $$d ]; then zip -r $$d.zip $$d; rm -r $$d; fi; done
 
-python_native : 
-	make -C src
-	mv src/$(SCRIPT) ./
 
 images :
 	cd tools; python image_builder.py 

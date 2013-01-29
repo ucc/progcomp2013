@@ -1,5 +1,7 @@
 [w,h] = [8,8] # Width and height of board(s)
 
+always_reveal_states = False
+
 # Class to represent a quantum chess board
 class Board():
 	# Initialise; if master=True then the secondary piece types are assigned
@@ -13,6 +15,9 @@ class Board():
 		self.king = {"white" : None, "black" : None} # We need to keep track of the king, because he is important
 		for c in ["black", "white"]:
 			del self.unrevealed_types[c]["unknown"]
+
+		if style == "empty":
+			return
 
 		# Add all the pieces with known primary types
 		for i in range(0, 2):

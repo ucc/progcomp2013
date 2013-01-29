@@ -67,8 +67,9 @@ def main(argv):
 	global log_file
 	global src_file
 	global graphics_enabled
+	global always_reveal_states
 
-
+	max_lines = None
 	src_file = None
 	
 	style = "quantum"
@@ -105,6 +106,8 @@ def main(argv):
 			style = "classical"
 		elif arg[1] == '-' and arg[2:] == "quantum":
 			style = "quantum"
+		elif arg[1] == '-' and arg[2:] == "reveal":
+			always_reveal_states = True
 		elif (arg[1] == '-' and arg[2:] == "graphics"):
 			graphics_enabled = not graphics_enabled
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "file"):
@@ -112,7 +115,11 @@ def main(argv):
 			if len(arg[2:].split("=")) == 1:
 				src_file = sys.stdin
 			else:
-				src_file = open(arg[2:].split("=")[1])
+				src_file = open(arg[2:].split("=")[1].split(":")[0])
+
+			if len(arg[2:].split(":")) == 2:
+				max_lines = int(arg[2:].split(":")[1])
+
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
 			# Log file
 			if len(arg[2:].split("=")) == 1:
@@ -144,9 +151,21 @@ def main(argv):
 	# Construct a GameThread! Make it global! Damn the consequences!
 			
 	if src_file != None:
-		if len(players) == 0:
+		# Hack to stop ReplayThread from exiting
+		#if len(players) == 0:
+		#	players = [HumanPlayer("dummy", "white"), HumanPlayer("dummy", "black")]
+
+		# Normally the ReplayThread exits if there are no players
+		# TODO: Decide which behaviour to use, and fix it
+		end = (len(players) == 0)
+		if end:
 			players = [Player("dummy", "white"), Player("dummy", "black")]
-		game = ReplayThread(players, src_file)
+		elif len(players) != 2:
+			sys.stderr.write(sys.argv[0] + " : Usage " + sys.argv[0] + " white black\n")
+			if graphics_enabled:
+				sys.stderr.write(sys.argv[0] + " : (You won't get a GUI, because --file was used, and the author is lazy)\n")
+			return 44
+		game = ReplayThread(players, src_file, end=end, max_lines=max_lines)
 	else:
 		board = Board(style)
 		game = GameThread(board, players) 
@@ -219,17 +238,24 @@ def main(argv):
 
 
 
+	log_init(game.board, players)
+	
 	
 	if graphics != None:
 		game.start() # This runs in a new thread
 		graphics.run()
-		game.join()
+		if game.is_alive():
+			game.join()
+	
+
 		error = game.error + graphics.error
 	else:
 		game.run()
 		error = game.error
+	
 
 	if log_file != None and log_file != sys.stdout:
+		log_file.write("# EOF\n")
 		log_file.close()
 
 	if src_file != None and src_file != sys.stdin:
@@ -239,4 +265,18 @@ def main(argv):
 
 # This is how python does a main() function...
 if __name__ == "__main__":
-	sys.exit(main(sys.argv))
+	try:
+		sys.exit(main(sys.argv))
+	except KeyboardInterrupt:
+		sys.stderr.write(sys.argv[0] + " : Got KeyboardInterrupt. Stopping everything\n")
+		if isinstance(graphics, StoppableThread):
+			graphics.stop()
+			graphics.run() # Will clean up graphics because it is stopped, not run it (a bit dodgy)
+
+		if isinstance(game, StoppableThread):
+			game.stop()
+			if game.is_alive():
+				game.join()
+
+		sys.exit(102)
+

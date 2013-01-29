@@ -7,7 +7,20 @@ def log(s):
 		import datetime
 		log_file.write(str(datetime.datetime.now()) + " : " + s + "\n")
 
+def log_init(board, players):
+	if log_file != None:
+		import datetime
+		log_file.write("# Log starts " + str(datetime.datetime.now()) + "\n")
+		for p in players:
+			log_file.write("# " + p.colour + " : " + p.name + "\n")
+		
+		log_file.write("# Initial board\n")
+		for x in range(0, w):
+			for y in range(0, h):
+				if board.grid[x][y] != None:
+					log_file.write(str(board.grid[x][y]) + "\n")
 
+		log_file.write("# Start game\n")
 	
 
 # A thread that runs the game
@@ -21,6 +34,8 @@ class GameThread(StoppableThread):
 		self.lock = threading.RLock() #lock for access of self.state
 		self.cond = threading.Condition() # conditional for some reason, I forgot
 		self.final_result = ""
+		
+		
 
 	# Run the game (run in new thread with start(), run in current thread with run())
 	def run(self):
@@ -132,20 +147,53 @@ class GameThread(StoppableThread):
 	
 # A thread that replays a log file
 class ReplayThread(GameThread):
-	def __init__(self, players, src):
-		self.board = Board(style="agent")
+	def __init__(self, players, src, end=False,max_lines=None):
+		self.board = Board(style="empty")
 		GameThread.__init__(self, self.board, players)
 		self.src = src
+		self.max_lines = max_lines
+		self.line_number = 0
+		self.end = end
 
-		self.ended = False
+		try:
+			while self.src.readline().strip(" \r\n") != "# Initial board":
+				self.line_number += 1
+		
+			line = self.src.readline().strip(" \r\n")
+			
+			while line != "# Start game":
+				#print "Reading line " + str(line)
+				self.line_number += 1
+				[x,y] = map(int, line.split("at")[1].strip(" \r\n").split(","))
+				colour = line.split(" ")[0]
+				current_type = line.split(" ")[1]
+				types = map(lambda e : e.strip(" [],'"), line.split(" ")[2:4])
+				p = Piece(colour, x, y, types)
+				if current_type != "unknown":
+					p.current_type = current_type
+					p.choice = types.index(current_type)
+
+				self.board.pieces[colour].append(p)
+				self.board.grid[x][y] = p
+				if current_type == "king":
+					self.board.king[colour] = p
+
+				line = self.src.readline().strip(" \r\n")
+				
+		except Exception, e:
+			raise Exception("FILE line: " + str(self.line_number) + " \""+str(line)+"\"") #\n" + e.message)
 	
 	def run(self):
 		i = 0
 		phase = 0
-		for line in self.src:
+		count = 0
+		line = self.src.readline().strip(" \r\n")
+		while line != "# EOF":
+			count += 1
+			if self.max_lines != None and count > self.max_lines:
+				self.stop()
 
 			if self.stopped():
-				self.ended = True
 				break
 
 			with self.lock:
@@ -158,10 +206,8 @@ class ReplayThread(GameThread):
 			try:
 				self.board.update(result)
 			except:
-				self.ended = True
 				self.final_result = result
-				if isinstance(graphics, GraphicsThread):
-					graphics.stop()
+				self.stop()
 				break
 
 			[x,y] = map(int, result.split(" ")[0:2])
@@ -173,14 +219,16 @@ class ReplayThread(GameThread):
 						graphics.state["moves"] = self.board.possible_moves(target)
 						graphics.state["select"] = target
 
-					time.sleep(turn_delay)
+					if self.end:
+						time.sleep(turn_delay)
 
 				elif phase == 1:
 					[x2,y2] = map(int, result.split(" ")[3:5])
 					with graphics.lock:
 						graphics.state["moves"] = [[x2,y2]]
 
-					time.sleep(turn_delay)
+					if self.end:
+						time.sleep(turn_delay)
 
 					with graphics.lock:
 						graphics.state["select"] = None
@@ -197,6 +245,21 @@ class ReplayThread(GameThread):
 			phase = (phase + 1) % 2
 			if phase == 0:
 				i = (i + 1) % 2
+
+			line = self.src.readline().strip(" \r\n")
+
+		if self.max_lines != None and self.max_lines > count:
+			sys.stderr.write(sys.argv[0] + " : Replaying from file; stopping at last line (" + str(count) + ")\n")
+			sys.stderr.write(sys.argv[0] + " : (You requested line " + str(self.max_lines) + ")\n")
+
+		if self.end and isinstance(graphics, GraphicsThread):
+			#graphics.stop()
+			pass # Let the user stop the display
+		elif not self.end:
+			global game
+			game = GameThread(self.board, self.players)
+			game.run()
+		
 
 		
 

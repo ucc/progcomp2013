@@ -203,8 +203,6 @@ class AgentRandom(InternalAgent):
 
 def run_agent(agent):
 	#sys.stderr.write(sys.argv[0] + " : Running agent " + str(agent) + "\n")
-	colour = sys.stdin.readline().strip(" \r\n")
-	agent.colour = colour
 	while True:
 		line = sys.stdin.readline().strip(" \r\n")
 		if line == "SELECTION?":
@@ -229,7 +227,7 @@ def run_agent(agent):
 
 class ExternalWrapper(ExternalAgent):
 	def __init__(self, agent):
-		run = "python -u -c \"import sys;import os;from qchess import *;agent = " + agent.__class__.__name__ + "('" + agent.name + "','"+agent.colour+"');sys.exit(run_agent(agent))\""
+		run = "python -u -c \"import sys;import os;from qchess import *;agent = " + agent.__class__.__name__ + "('" + agent.name + "','"+agent.colour+"');sys.stdin.readline();sys.exit(run_agent(agent))\""
 		# str(run)
 		ExternalAgent.__init__(self, run, agent.colour)
 

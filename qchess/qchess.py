@@ -39,7 +39,7 @@ class Piece():
 
 	# Make a string for the piece (used for debug)
 	def __str__(self):
-		return str(self.current_type) + " " + str(self.types) + " at " + str(self.x) + ","+str(self.y)  
+		return str(self.colour) + " " + str(self.current_type) + " " + str(self.types) + " at " + str(self.x) + ","+str(self.y)  
 
 	# Draw the piece in a pygame surface
 	def draw(self, window, grid_sz = [80,80], style="quantum"):
@@ -59,7 +59,7 @@ class Piece():
 
 		# Draw the two possible types underneath the current_type image
 		for i in range(len(self.types)):
-			if self.types_revealed[i] == True:
+			if always_reveal_states == True or self.types_revealed[i] == True:
 				img = small_images[self.colour][self.types[i]]
 			else:
 				img = small_images[self.colour]["unknown"] # If the type hasn't been revealed, show a placeholder
@@ -97,6 +97,8 @@ class Piece():
 # --- piece.py --- #
 [w,h] = [8,8] # Width and height of board(s)
 
+always_reveal_states = False
+
 # Class to represent a quantum chess board
 class Board():
 	# Initialise; if master=True then the secondary piece types are assigned
@@ -110,6 +112,9 @@ class Board():
 		self.king = {"white" : None, "black" : None} # We need to keep track of the king, because he is important
 		for c in ["black", "white"]:
 			del self.unrevealed_types[c]["unknown"]
+
+		if style == "empty":
+			return
 
 		# Add all the pieces with known primary types
 		for i in range(0, 2):
@@ -704,8 +709,6 @@ class AgentRandom(InternalAgent):
 
 def run_agent(agent):
 	#sys.stderr.write(sys.argv[0] + " : Running agent " + str(agent) + "\n")
-	colour = sys.stdin.readline().strip(" \r\n")
-	agent.colour = colour
 	while True:
 		line = sys.stdin.readline().strip(" \r\n")
 		if line == "SELECTION?":
@@ -730,7 +733,7 @@ def run_agent(agent):
 
 class ExternalWrapper(ExternalAgent):
 	def __init__(self, agent):
-		run = "python -u -c \"import sys;import os;from qchess import *;agent = " + agent.__class__.__name__ + "('" + agent.name + "','"+agent.colour+"');sys.exit(run_agent(agent))\""
+		run = "python -u -c \"import sys;import os;from qchess import *;agent = " + agent.__class__.__name__ + "('" + agent.name + "','"+agent.colour+"');sys.stdin.readline();sys.exit(run_agent(agent))\""
 		# str(run)
 		ExternalAgent.__init__(self, run, agent.colour)
 
@@ -1205,7 +1208,20 @@ def log(s):
 		import datetime
 		log_file.write(str(datetime.datetime.now()) + " : " + s + "\n")
 
+def log_init(board, players):
+	if log_file != None:
+		import datetime
+		log_file.write("# Log starts " + str(datetime.datetime.now()) + "\n")
+		for p in players:
+			log_file.write("# " + p.colour + " : " + p.name + "\n")
+		
+		log_file.write("# Initial board\n")
+		for x in range(0, w):
+			for y in range(0, h):
+				if board.grid[x][y] != None:
+					log_file.write(str(board.grid[x][y]) + "\n")
 
+		log_file.write("# Start game\n")
 	
 
 # A thread that runs the game
@@ -1219,6 +1235,8 @@ class GameThread(StoppableThread):
 		self.lock = threading.RLock() #lock for access of self.state
 		self.cond = threading.Condition() # conditional for some reason, I forgot
 		self.final_result = ""
+		
+		
 
 	# Run the game (run in new thread with start(), run in current thread with run())
 	def run(self):
@@ -1330,20 +1348,53 @@ class GameThread(StoppableThread):
 	
 # A thread that replays a log file
 class ReplayThread(GameThread):
-	def __init__(self, players, src):
-		self.board = Board(style="agent")
+	def __init__(self, players, src, end=False,max_lines=None):
+		self.board = Board(style="empty")
 		GameThread.__init__(self, self.board, players)
 		self.src = src
+		self.max_lines = max_lines
+		self.line_number = 0
+		self.end = end
 
-		self.ended = False
+		try:
+			while self.src.readline().strip(" \r\n") != "# Initial board":
+				self.line_number += 1
+		
+			line = self.src.readline().strip(" \r\n")
+			
+			while line != "# Start game":
+				#print "Reading line " + str(line)
+				self.line_number += 1
+				[x,y] = map(int, line.split("at")[1].strip(" \r\n").split(","))
+				colour = line.split(" ")[0]
+				current_type = line.split(" ")[1]
+				types = map(lambda e : e.strip(" [],'"), line.split(" ")[2:4])
+				p = Piece(colour, x, y, types)
+				if current_type != "unknown":
+					p.current_type = current_type
+					p.choice = types.index(current_type)
+
+				self.board.pieces[colour].append(p)
+				self.board.grid[x][y] = p
+				if current_type == "king":
+					self.board.king[colour] = p
+
+				line = self.src.readline().strip(" \r\n")
+				
+		except Exception, e:
+			raise Exception("FILE line: " + str(self.line_number) + " \""+str(line)+"\"") #\n" + e.message)
 	
 	def run(self):
 		i = 0
 		phase = 0
-		for line in self.src:
+		count = 0
+		line = self.src.readline().strip(" \r\n")
+		while line != "# EOF":
+			count += 1
+			if self.max_lines != None and count > self.max_lines:
+				self.stop()
 
 			if self.stopped():
-				self.ended = True
 				break
 
 			with self.lock:
@@ -1356,10 +1407,8 @@ class ReplayThread(GameThread):
 			try:
 				self.board.update(result)
 			except:
-				self.ended = True
 				self.final_result = result
-				if isinstance(graphics, GraphicsThread):
-					graphics.stop()
+				self.stop()
 				break
 
 			[x,y] = map(int, result.split(" ")[0:2])
@@ -1371,14 +1420,16 @@ class ReplayThread(GameThread):
 						graphics.state["moves"] = self.board.possible_moves(target)
 						graphics.state["select"] = target
 
-					time.sleep(turn_delay)
+					if self.end:
+						time.sleep(turn_delay)
 
 				elif phase == 1:
 					[x2,y2] = map(int, result.split(" ")[3:5])
 					with graphics.lock:
 						graphics.state["moves"] = [[x2,y2]]
 
-					time.sleep(turn_delay)
+					if self.end:
+						time.sleep(turn_delay)
 
 					with graphics.lock:
 						graphics.state["select"] = None
@@ -1395,6 +1446,21 @@ class ReplayThread(GameThread):
 			phase = (phase + 1) % 2
 			if phase == 0:
 				i = (i + 1) % 2
+
+			line = self.src.readline().strip(" \r\n")
+
+		if self.max_lines != None and self.max_lines > count:
+			sys.stderr.write(sys.argv[0] + " : Replaying from file; stopping at last line (" + str(count) + ")\n")
+			sys.stderr.write(sys.argv[0] + " : (You requested line " + str(self.max_lines) + ")\n")
+
+		if self.end and isinstance(graphics, GraphicsThread):
+			#graphics.stop()
+			pass # Let the user stop the display
+		elif not self.end:
+			global game
+			game = GameThread(self.board, self.players)
+			game.run()
+		
 
 		
 
@@ -1965,8 +2031,9 @@ def main(argv):
 	global log_file
 	global src_file
 	global graphics_enabled
+	global always_reveal_states
 
-
+	max_lines = None
 	src_file = None
 	
 	style = "quantum"
@@ -2003,6 +2070,8 @@ def main(argv):
 			style = "classical"
 		elif arg[1] == '-' and arg[2:] == "quantum":
 			style = "quantum"
+		elif arg[1] == '-' and arg[2:] == "reveal":
+			always_reveal_states = True
 		elif (arg[1] == '-' and arg[2:] == "graphics"):
 			graphics_enabled = not graphics_enabled
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "file"):
@@ -2010,7 +2079,11 @@ def main(argv):
 			if len(arg[2:].split("=")) == 1:
 				src_file = sys.stdin
 			else:
-				src_file = open(arg[2:].split("=")[1])
+				src_file = open(arg[2:].split("=")[1].split(":")[0])
+
+			if len(arg[2:].split(":")) == 2:
+				max_lines = int(arg[2:].split(":")[1])
+
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
 			# Log file
 			if len(arg[2:].split("=")) == 1:
@@ -2042,9 +2115,21 @@ def main(argv):
 	# Construct a GameThread! Make it global! Damn the consequences!
 			
 	if src_file != None:
-		if len(players) == 0:
+		# Hack to stop ReplayThread from exiting
+		#if len(players) == 0:
+		#	players = [HumanPlayer("dummy", "white"), HumanPlayer("dummy", "black")]
+
+		# Normally the ReplayThread exits if there are no players
+		# TODO: Decide which behaviour to use, and fix it
+		end = (len(players) == 0)
+		if end:
 			players = [Player("dummy", "white"), Player("dummy", "black")]
-		game = ReplayThread(players, src_file)
+		elif len(players) != 2:
+			sys.stderr.write(sys.argv[0] + " : Usage " + sys.argv[0] + " white black\n")
+			if graphics_enabled:
+				sys.stderr.write(sys.argv[0] + " : (You won't get a GUI, because --file was used, and the author is lazy)\n")
+			return 44
+		game = ReplayThread(players, src_file, end=end, max_lines=max_lines)
 	else:
 		board = Board(style)
 		game = GameThread(board, players) 
@@ -2117,17 +2202,24 @@ def main(argv):
 
 
 
+	log_init(game.board, players)
+	
 	
 	if graphics != None:
 		game.start() # This runs in a new thread
 		graphics.run()
-		game.join()
+		if game.is_alive():
+			game.join()
+	
+
 		error = game.error + graphics.error
 	else:
 		game.run()
 		error = game.error
+	
 
 	if log_file != None and log_file != sys.stdout:
+		log_file.write("# EOF\n")
 		log_file.close()
 
 	if src_file != None and src_file != sys.stdin:
@@ -2137,6 +2229,20 @@ def main(argv):
 
 # This is how python does a main() function...
 if __name__ == "__main__":
-	sys.exit(main(sys.argv))
+	try:
+		sys.exit(main(sys.argv))
+	except KeyboardInterrupt:
+		sys.stderr.write(sys.argv[0] + " : Got KeyboardInterrupt. Stopping everything\n")
+		if isinstance(graphics, StoppableThread):
+			graphics.stop()
+			graphics.run() # Will clean up graphics because it is stopped, not run it (a bit dodgy)
+
+		if isinstance(game, StoppableThread):
+			game.stop()
+			if game.is_alive():
+				game.join()
+
+		sys.exit(102)
+
 # --- main.py --- #
-# EOF - created from make on Tue Jan 29 18:10:18 WST 2013
+# EOF - created from make on Wed Jan 30 00:45:46 WST 2013

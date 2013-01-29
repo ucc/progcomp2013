@@ -38,7 +38,7 @@ class Piece():
 
 	# Make a string for the piece (used for debug)
 	def __str__(self):
-		return str(self.current_type) + " " + str(self.types) + " at " + str(self.x) + ","+str(self.y)  
+		return str(self.colour) + " " + str(self.current_type) + " " + str(self.types) + " at " + str(self.x) + ","+str(self.y)  
 
 	# Draw the piece in a pygame surface
 	def draw(self, window, grid_sz = [80,80], style="quantum"):
@@ -58,7 +58,7 @@ class Piece():
 
 		# Draw the two possible types underneath the current_type image
 		for i in range(len(self.types)):
-			if self.types_revealed[i] == True:
+			if always_reveal_states == True or self.types_revealed[i] == True:
 				img = small_images[self.colour][self.types[i]]
 			else:
 				img = small_images[self.colour]["unknown"] # If the type hasn't been revealed, show a placeholder
