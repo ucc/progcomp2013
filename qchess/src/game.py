@@ -176,6 +176,8 @@ class ReplayThread(GameThread):
 		self.board.pieces = pieces
 		self.board.king = king
 		self.board.grid = grid
+
+		# Update the player's boards
 	
 	def run(self):
 		move_count = 0
@@ -207,33 +209,56 @@ class ReplayThread(GameThread):
 				self.stop()
 				break
 
+			log(move)
+
 			target = self.board.grid[x][y]
+			with self.lock:
+				if target.colour == "white":
+					self.state["turn"] = self.players[0]
+				else:
+					self.state["turn"] = self.players[1]
 			
 			move_piece = (tokens[2] == "->")
-
 			if move_piece:
 				[x2,y2] = map(int, tokens[len(tokens)-2:])
 
-			log(move)
-			self.board.update(move)
+			if isinstance(graphics, GraphicsThread):
+				with graphics.lock:
+					graphics.state["select"] = target
+					
+			if not move_piece:
+				self.board.update_select(x, y, int(tokens[2]), tokens[len(tokens)-1])
+				if isinstance(graphics, GraphicsThread):
+					with graphics.lock:
+						graphics.state["moves"] = self.board.possible_moves(target)
+					time.sleep(turn_delay)
+			else:
+				self.board.update_move(x, y, x2, y2)
+				if isinstance(graphics, GraphicsThread):
+					with graphics.lock:
+						graphics.state["moves"] = [[x2,y2]]
+					time.sleep(turn_delay)
+					with graphics.lock:
+						graphics.state["select"] = None
+						graphics.state["moves"] = None
+						graphics.state["dest"] = None
+			
+
+			
+			
+			
 			for p in self.players:
 				p.update(move)
 
 			line = self.src.readline().strip(" \r\n")
 			
-			if isinstance(graphics, GraphicsThread):
-				with self.lock:
-					if target.colour == "white":
-						self.state["turn"] = self.players[0]
-					else:
-						self.state["turn"] = self.players[1]
+			
+					
+					
+						
+						
 
-				with graphics.lock:
-					graphics.state["select"] = target
-					if move_piece:
-						graphics.state["moves"] = [[x2, y2]]
-					elif target.current_type != "unknown":
-						graphics.state["moves"] = self.board.possible_moves(target)
+			
 					
 
 

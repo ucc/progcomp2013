@@ -7,6 +7,7 @@ class LogFile():
 		
 		self.log = log
 		self.logged = []
+		self.log.write("# Log starts " + str(datetime.datetime.now()) + "\n")
 
 	def write(self, s):
 		now = datetime.datetime.now()
@@ -14,7 +15,7 @@ class LogFile():
 		self.logged.append((now, s))
 
 	def setup(self, board, players):
-		self.log.write("# Log starts " + str(datetime.datetime.now()) + "\n")
+		
 		for p in players:
 			self.log.write("# " + p.colour + " : " + p.name + "\n")
 		
@@ -43,6 +44,7 @@ class HttpLog(LogFile):
 		if self.phase == 0:
 			self.log.close()
 			self.log = open(self.file_name, "w", 0)
+			self.log.write("# Short log updated " + str(datetime.datetime.now()) + "\n")	
 			LogFile.setup(self, game.board, game.players)
 
 		elif self.phase == 1:
@@ -59,37 +61,66 @@ class HttpLog(LogFile):
 class HeadRequest(urllib2.Request):
 	def get_method(self):
 		return "HEAD"
+
+class HttpGetter(StoppableThread):
+	def __init__(self, address):
+		StoppableThread.__init__(self)
+		self.address = address
+		self.log = urllib2.urlopen(address)
+		self.lines = []
+		self.lock = threading.RLock() #lock for access of self.state
+		self.cond = threading.Condition() # conditional
+
+	def run(self):
+		while not self.stopped():
+			line = self.log.readline()
+			if line == "":
+				date_mod = datetime.datetime.strptime(self.log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
+				self.log.close()
+	
+				next_log = urllib2.urlopen(HeadRequest(self.address))
+				date_new = datetime.datetime.strptime(next_log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
+				while date_new <= date_mod and not self.stopped():
+					next_log = urllib2.urlopen(HeadRequest(self.address))
+					date_new = datetime.datetime.strptime(next_log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
+				if self.stopped():
+					break
+
+				self.log = urllib2.urlopen(self.address)
+				line = self.log.readline()
+
+			self.cond.acquire()
+			self.lines.append(line)
+			self.cond.notifyAll()
+			self.cond.release()
+
+			#sys.stderr.write(" HttpGetter got \'" + str(line) + "\'\n")
+
+		self.log.close()
+				
+				
+	
+		
 		
 class HttpReplay():
 	def __init__(self, address):
-		self.read_setup = False
-		self.log = urllib2.urlopen(address)
-		self.address = address
-
-	def readline(self):
+		self.getter = HttpGetter(address)
+		self.getter.start()
 		
-		line = self.log.readline()
-		sys.stderr.write(sys.argv[0] + " : " + str(self.__class__.__name__) + " read \""+str(line.strip("\r\n")) + "\" from address " + str(self.address) + "\n")
-		if line == "":
-			sys.stderr.write(sys.argv[0] + " : " + str(self.__class__.__name__) + " retrieving from address " + str(self.address) + "\n")
-			date_mod = datetime.datetime.strptime(self.log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
-			self.log.close()
+	def readline(self):
+		self.getter.cond.acquire()
+		while len(self.getter.lines) == 0:
+			self.getter.cond.wait()
+			
+		result = self.getter.lines[0]
+		self.getter.lines = self.getter.lines[1:]
+		self.getter.cond.release()
 
-			next_log = urllib2.urlopen(HeadRequest(self.address))
-			date_new = datetime.datetime.strptime(next_log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
-			while date_new <= date_mod:
-				next_log = urllib2.urlopen(HeadRequest(self.address))
-				date_new = datetime.datetime.strptime(next_log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
-
-			self.log = urllib2.urlopen(self.address)
-			game.setup()
-			line = self.log.readline()
-
-
-		return line
+		return result
+			
 			
 	def close(self):
-		self.log.close()
+		self.getter.stop()
 						
 def log(s):
 	if log_file != None:

@@ -1208,6 +1208,7 @@ class LogFile():
 		
 		self.log = log
 		self.logged = []
+		self.log.write("# Log starts " + str(datetime.datetime.now()) + "\n")
 
 	def write(self, s):
 		now = datetime.datetime.now()
@@ -1215,7 +1216,7 @@ class LogFile():
 		self.logged.append((now, s))
 
 	def setup(self, board, players):
-		self.log.write("# Log starts " + str(datetime.datetime.now()) + "\n")
+		
 		for p in players:
 			self.log.write("# " + p.colour + " : " + p.name + "\n")
 		
@@ -1244,6 +1245,7 @@ class HttpLog(LogFile):
 		if self.phase == 0:
 			self.log.close()
 			self.log = open(self.file_name, "w", 0)
+			self.log.write("# Short log updated " + str(datetime.datetime.now()) + "\n")	
 			LogFile.setup(self, game.board, game.players)
 
 		elif self.phase == 1:
@@ -1260,37 +1262,66 @@ class HttpLog(LogFile):
 class HeadRequest(urllib2.Request):
 	def get_method(self):
 		return "HEAD"
+
+class HttpGetter(StoppableThread):
+	def __init__(self, address):
+		StoppableThread.__init__(self)
+		self.address = address
+		self.log = urllib2.urlopen(address)
+		self.lines = []
+		self.lock = threading.RLock() #lock for access of self.state
+		self.cond = threading.Condition() # conditional
+
+	def run(self):
+		while not self.stopped():
+			line = self.log.readline()
+			if line == "":
+				date_mod = datetime.datetime.strptime(self.log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
+				self.log.close()
+	
+				next_log = urllib2.urlopen(HeadRequest(self.address))
+				date_new = datetime.datetime.strptime(next_log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
+				while date_new <= date_mod and not self.stopped():
+					next_log = urllib2.urlopen(HeadRequest(self.address))
+					date_new = datetime.datetime.strptime(next_log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
+				if self.stopped():
+					break
+
+				self.log = urllib2.urlopen(self.address)
+				line = self.log.readline()
+
+			self.cond.acquire()
+			self.lines.append(line)
+			self.cond.notifyAll()
+			self.cond.release()
+
+			#sys.stderr.write(" HttpGetter got \'" + str(line) + "\'\n")
+
+		self.log.close()
+				
+				
+	
+		
 		
 class HttpReplay():
 	def __init__(self, address):
-		self.read_setup = False
-		self.log = urllib2.urlopen(address)
-		self.address = address
-
-	def readline(self):
+		self.getter = HttpGetter(address)
+		self.getter.start()
 		
-		line = self.log.readline()
-		sys.stderr.write(sys.argv[0] + " : " + str(self.__class__.__name__) + " read \""+str(line.strip("\r\n")) + "\" from address " + str(self.address) + "\n")
-		if line == "":
-			sys.stderr.write(sys.argv[0] + " : " + str(self.__class__.__name__) + " retrieving from address " + str(self.address) + "\n")
-			date_mod = datetime.datetime.strptime(self.log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
-			self.log.close()
+	def readline(self):
+		self.getter.cond.acquire()
+		while len(self.getter.lines) == 0:
+			self.getter.cond.wait()
+			
+		result = self.getter.lines[0]
+		self.getter.lines = self.getter.lines[1:]
+		self.getter.cond.release()
 
-			next_log = urllib2.urlopen(HeadRequest(self.address))
-			date_new = datetime.datetime.strptime(next_log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
-			while date_new <= date_mod:
-				next_log = urllib2.urlopen(HeadRequest(self.address))
-				date_new = datetime.datetime.strptime(next_log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
-
-			self.log = urllib2.urlopen(self.address)
-			game.setup()
-			line = self.log.readline()
-
-
-		return line
+		return result
+			
 			
 	def close(self):
-		self.log.close()
+		self.getter.stop()
 						
 def log(s):
 	if log_file != None:
@@ -1480,6 +1511,8 @@ class ReplayThread(GameThread):
 		self.board.pieces = pieces
 		self.board.king = king
 		self.board.grid = grid
+
+		# Update the player's boards
 	
 	def run(self):
 		move_count = 0
@@ -1511,33 +1544,56 @@ class ReplayThread(GameThread):
 				self.stop()
 				break
 
+			log(move)
+
 			target = self.board.grid[x][y]
+			with self.lock:
+				if target.colour == "white":
+					self.state["turn"] = self.players[0]
+				else:
+					self.state["turn"] = self.players[1]
 			
 			move_piece = (tokens[2] == "->")
-
 			if move_piece:
 				[x2,y2] = map(int, tokens[len(tokens)-2:])
 
-			log(move)
-			self.board.update(move)
+			if isinstance(graphics, GraphicsThread):
+				with graphics.lock:
+					graphics.state["select"] = target
+					
+			if not move_piece:
+				self.board.update_select(x, y, int(tokens[2]), tokens[len(tokens)-1])
+				if isinstance(graphics, GraphicsThread):
+					with graphics.lock:
+						graphics.state["moves"] = self.board.possible_moves(target)
+					time.sleep(turn_delay)
+			else:
+				self.board.update_move(x, y, x2, y2)
+				if isinstance(graphics, GraphicsThread):
+					with graphics.lock:
+						graphics.state["moves"] = [[x2,y2]]
+					time.sleep(turn_delay)
+					with graphics.lock:
+						graphics.state["select"] = None
+						graphics.state["moves"] = None
+						graphics.state["dest"] = None
+			
+
+			
+			
+			
 			for p in self.players:
 				p.update(move)
 
 			line = self.src.readline().strip(" \r\n")
 			
-			if isinstance(graphics, GraphicsThread):
-				with self.lock:
-					if target.colour == "white":
-						self.state["turn"] = self.players[0]
-					else:
-						self.state["turn"] = self.players[1]
+			
+					
+					
+						
+						
 
-				with graphics.lock:
-					graphics.state["select"] = target
-					if move_piece:
-						graphics.state["moves"] = [[x2, y2]]
-					elif target.current_type != "unknown":
-						graphics.state["moves"] = self.board.possible_moves(target)
+			
 					
 
 
@@ -2352,4 +2408,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Wed Jan 30 19:58:45 WST 2013
+# EOF - created from make on Wed Jan 30 21:00:29 WST 2013
