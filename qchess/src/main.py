@@ -115,17 +115,25 @@ def main(argv):
 			if len(arg[2:].split("=")) == 1:
 				src_file = sys.stdin
 			else:
-				src_file = open(arg[2:].split("=")[1].split(":")[0])
+				f = arg[2:].split("=")[1]
+				if f[0] == '@':
+					src_file = HttpReplay("http://" + f.split(":")[0][1:])
+				else:
+					src_file = open(f.split(":")[0], "r", 0)
 
-			if len(arg[2:].split(":")) == 2:
-				max_lines = int(arg[2:].split(":")[1])
+				if len(f.split(":")) == 2:
+					max_lines = int(f.split(":")[1])
 
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
 			# Log file
 			if len(arg[2:].split("=")) == 1:
 				log_file = sys.stdout
 			else:
-				log_file = open(arg[2:].split("=")[1], "w")
+				f = arg[2:].split("=")[1]
+				if f[0] == '@':
+					log_file = HttpLog(f[1:])
+				else:
+					log_file = LogFile(f)
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "delay"):
 			# Delay
 			if len(arg[2:].split("=")) == 1:

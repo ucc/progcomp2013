@@ -1,4 +1,7 @@
-import pygame
+try:
+	import pygame
+except:
+	pass
 import os
 
 # Dictionary that stores the unicode character representations of the different pieces

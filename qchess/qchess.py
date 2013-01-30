@@ -1199,29 +1199,91 @@ class StoppableThread(threading.Thread):
 	def stopped(self):
 		return self._stop.isSet()
 # --- thread_util.py --- #
-
-
 log_file = None
+import datetime
+import urllib2
 
-def log(s):
-	if log_file != None:
-		import datetime
-		log_file.write(str(datetime.datetime.now()) + " : " + s + "\n")
-
-def log_init(board, players):
-	if log_file != None:
-		import datetime
-		log_file.write("# Log starts " + str(datetime.datetime.now()) + "\n")
-		for p in players:
-			log_file.write("# " + p.colour + " : " + p.name + "\n")
+class LogFile():
+	def __init__(self, file_name):	
 		
-		log_file.write("# Initial board\n")
+		self.log = open(file_name, "w", 0)
+
+	def write(self, s):
+		self.log.write(str(datetime.datetime.now()) + " : " + s + "\n")
+
+	def setup(self, board, players):
+		self.log.write("# Log starts " + str(datetime.datetime.now()) + "\n")
+		for p in players:
+			self.log.write("# " + p.colour + " : " + p.name + "\n")
+		
+		self.log.write("# Initial board\n")
 		for x in range(0, w):
 			for y in range(0, h):
 				if board.grid[x][y] != None:
-					log_file.write(str(board.grid[x][y]) + "\n")
+					self.log.write(str(board.grid[x][y]) + "\n")
 
-		log_file.write("# Start game\n")
+		self.log.write("# Start game\n")
+
+class HttpLog(LogFile):
+	def __init__(self, file_name):
+		LogFile.__init__(self, file_name)
+		self.file_name = file_name
+
+	def write(self, s):
+		self.log.close()
+		self.log = open(self.file_name, "w", 0)
+
+		LogFile.setup(self, game.board, game.players)
+
+		LogFile.write(self, s)
+		
+
+class HeadRequest(urllib2.Request):
+	def get_method(self):
+		return "HEAD"
+		
+class HttpReplay():
+	def __init__(self, address):
+		self.read_setup = False
+		self.log = urllib2.urlopen(address)
+		self.address = address
+
+	def readline(self):
+		
+		line = self.log.readline()
+		sys.stderr.write(sys.argv[0] + " : " + str(self) + " read \""+str(line) + "\" from address " + str(self.address) + "\n")
+		if line == "":
+			sys.stderr.write(sys.argv[0] + " : " + str(self) + " retrieving from address " + str(self.address) + "\n")
+			date_mod = datetime.datetime.strptime(self.log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
+			self.log.close()
+
+			next_log = urllib2.urlopen(HeadRequest(self.address))
+			date_new = datetime.datetime.strptime(next_log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
+			while date_new <= date_mod:
+				next_log = urllib2.urlopen(HeadRequest(self.address))
+				date_new = datetime.datetime.strptime(next_log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
+
+			self.log = urllib2.urlopen(address)
+			game.setup()
+			line = self.log.readline()
+
+
+		return line
+			
+						
+def log(s):
+	if log_file != None:
+		log_file.write(s)
+		
+
+def log_init(board, players):
+	if log_file != None:
+		log_file.setup(board, players)
+
+# --- log.py --- #
+
+
+
 	
 
 # A thread that runs the game
@@ -1356,7 +1418,10 @@ class ReplayThread(GameThread):
 		self.line_number = 0
 		self.end = end
 
-		try:
+		self.setup()
+
+	def setup(self):
+		if True:
 			while self.src.readline().strip(" \r\n") != "# Initial board":
 				self.line_number += 1
 		
@@ -1381,8 +1446,8 @@ class ReplayThread(GameThread):
 
 				line = self.src.readline().strip(" \r\n")
 				
-		except Exception, e:
-			raise Exception("FILE line: " + str(self.line_number) + " \""+str(line)+"\"") #\n" + e.message)
+		#except Exception, e:
+		#	raise Exception("FILE line: " + str(self.line_number) + " \""+str(line)+"\"") #\n" + e.message)
 	
 	def run(self):
 		i = 0
@@ -1470,7 +1535,10 @@ def opponent(colour):
 	else:
 		return "white"
 # --- game.py --- #
-import pygame
+try:
+	import pygame
+except:
+	pass
 import os
 
 # Dictionary that stores the unicode character representations of the different pieces
@@ -1552,7 +1620,7 @@ class GraphicsThread(StoppableThread):
 		#print "Test font"
 		pygame.font.Font(os.path.join(os.path.curdir, "data", "DejaVuSans.ttf"), 32).render("Hello", True,(0,0,0))
 
-		#create_images(grid_sz)
+		#load_images()
 		create_images(grid_sz)
 
 		"""
@@ -2079,17 +2147,25 @@ def main(argv):
 			if len(arg[2:].split("=")) == 1:
 				src_file = sys.stdin
 			else:
-				src_file = open(arg[2:].split("=")[1].split(":")[0])
+				f = arg[2:].split("=")[1]
+				if f[0] == '@':
+					src_file = HttpReplay("http://" + f.split(":")[0][1:])
+				else:
+					src_file = open(f.split(":")[0], "r", 0)
 
-			if len(arg[2:].split(":")) == 2:
-				max_lines = int(arg[2:].split(":")[1])
+				if len(f.split(":")) == 2:
+					max_lines = int(f.split(":")[1])
 
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
 			# Log file
 			if len(arg[2:].split("=")) == 1:
 				log_file = sys.stdout
 			else:
-				log_file = open(arg[2:].split("=")[1], "w")
+				f = arg[2:].split("=")[1]
+				if f[0] == '@':
+					log_file = HttpLog(f[1:])
+				else:
+					log_file = LogFile(f)
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "delay"):
 			# Delay
 			if len(arg[2:].split("=")) == 1:
@@ -2245,4 +2321,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Wed Jan 30 00:45:46 WST 2013
+# EOF - created from make on Wed Jan 30 17:03:00 WST 2013

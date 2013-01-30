@@ -1,26 +1,6 @@
 
 
-log_file = None
 
-def log(s):
-	if log_file != None:
-		import datetime
-		log_file.write(str(datetime.datetime.now()) + " : " + s + "\n")
-
-def log_init(board, players):
-	if log_file != None:
-		import datetime
-		log_file.write("# Log starts " + str(datetime.datetime.now()) + "\n")
-		for p in players:
-			log_file.write("# " + p.colour + " : " + p.name + "\n")
-		
-		log_file.write("# Initial board\n")
-		for x in range(0, w):
-			for y in range(0, h):
-				if board.grid[x][y] != None:
-					log_file.write(str(board.grid[x][y]) + "\n")
-
-		log_file.write("# Start game\n")
 	
 
 # A thread that runs the game
@@ -155,7 +135,10 @@ class ReplayThread(GameThread):
 		self.line_number = 0
 		self.end = end
 
-		try:
+		self.setup()
+
+	def setup(self):
+		if True:
 			while self.src.readline().strip(" \r\n") != "# Initial board":
 				self.line_number += 1
 		
@@ -180,8 +163,8 @@ class ReplayThread(GameThread):
 
 				line = self.src.readline().strip(" \r\n")
 				
-		except Exception, e:
-			raise Exception("FILE line: " + str(self.line_number) + " \""+str(line)+"\"") #\n" + e.message)
+		#except Exception, e:
+		#	raise Exception("FILE line: " + str(self.line_number) + " \""+str(line)+"\"") #\n" + e.message)
 	
 	def run(self):
 		i = 0
