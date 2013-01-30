@@ -144,29 +144,38 @@ class ReplayThread(GameThread):
 	def reset_board(self, line):
 		pieces = {"white" : [], "black" : []}
 		king = {"white" : None, "black" : None}
+		grid = [[None] * w for _ in range(h)]
 		for x in range(w):
 			for y in range(h):
 				self.board.grid[x][y] = None
 		while line != "# Start game":
+			if line[0] == "#":
+				line = self.src.readline().strip(" \r\n")
+				continue
+
 			tokens = line.split(" ")
 			[x, y] = map(int, tokens[len(tokens)-1].split(","))
 			current_type = tokens[1]
-			types = map(lambda e : e.strip("'[], "), tokens[2].split(","))
-
-			target = Piece(tokens[0], x, y, current_type)
+			types = map(lambda e : e.strip("'[], "), (tokens[2]+tokens[3]).split(","))
+			
+			target = Piece(tokens[0], x, y, types)
+			target.current_type = current_type
+			
 			try:
 				target.choice = types.index(current_type)
 			except:
 				target.choice = -1
 
-			pieces[token[0]].append(target)
+			pieces[tokens[0]].append(target)
 			if target.current_type == "king":
-				king[token[0]] = target
+				king[tokens[0]] = target
+			grid[x][y] = target
 		
 			line = self.src.readline().strip(" \r\n")
 
 		self.board.pieces = pieces
 		self.board.king = king
+		self.board.grid = grid
 	
 	def run(self):
 		move_count = 0
@@ -187,8 +196,11 @@ class ReplayThread(GameThread):
 				line = self.src.readline().strip(" \r\n")
 				continue
 
-			move = line.split(":")[1]
+			move = line.split(":")
+			move = move[len(move)-1].strip(" \r\n")
 			tokens = move.split(" ")
+			
+			
 			try:
 				[x,y] = map(int, tokens[0:2])
 			except:
@@ -206,6 +218,8 @@ class ReplayThread(GameThread):
 			self.board.update(move)
 			for p in self.players:
 				p.update(move)
+
+			line = self.src.readline().strip(" \r\n")
 			
 			if isinstance(graphics, GraphicsThread):
 				with self.lock:
