@@ -71,12 +71,15 @@ class GameThread(StoppableThread):
 					if self.stopped():
 						break
 
+					if isinstance(log_file, HttpLog):
+						log_file.prelog()
+
 					self.board.update_move(x, y, x2, y2)
 					result = str(x) + " " + str(y) + " -> " + str(x2) + " " + str(y2)
 					for p2 in self.players:
 						p2.update(result) # Inform players of what happened
 
-					log(result)
+					log(result)					
 
 					if isinstance(graphics, GraphicsThread):
 						with graphics.lock:
@@ -122,7 +125,8 @@ class GameThread(StoppableThread):
 
 		log(self.final_result)
 
-		graphics.stop()
+		if isinstance(graphics, GraphicsThread):
+			graphics.stop()
 
 	
 # A thread that replays a log file

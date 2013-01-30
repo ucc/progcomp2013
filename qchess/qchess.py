@@ -1229,13 +1229,11 @@ class HttpLog(LogFile):
 		LogFile.__init__(self, file_name)
 		self.file_name = file_name
 
-	def write(self, s):
+	def prelog(self):
 		self.log.close()
 		self.log = open(self.file_name, "w", 0)
 
 		LogFile.setup(self, game.board, game.players)
-
-		LogFile.write(self, s)
 		
 
 class HeadRequest(urllib2.Request):
@@ -1356,12 +1354,15 @@ class GameThread(StoppableThread):
 					if self.stopped():
 						break
 
+					if isinstance(log_file, HttpLog):
+						log_file.prelog()
+
 					self.board.update_move(x, y, x2, y2)
 					result = str(x) + " " + str(y) + " -> " + str(x2) + " " + str(y2)
 					for p2 in self.players:
 						p2.update(result) # Inform players of what happened
 
-					log(result)
+					log(result)					
 
 					if isinstance(graphics, GraphicsThread):
 						with graphics.lock:
@@ -1407,7 +1408,8 @@ class GameThread(StoppableThread):
 
 		log(self.final_result)
 
-		graphics.stop()
+		if isinstance(graphics, GraphicsThread):
+			graphics.stop()
 
 	
 # A thread that replays a log file
@@ -2330,4 +2332,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Wed Jan 30 17:20:26 WST 2013
+# EOF - created from make on Wed Jan 30 18:01:41 WST 2013

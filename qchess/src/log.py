@@ -28,13 +28,11 @@ class HttpLog(LogFile):
 		LogFile.__init__(self, file_name)
 		self.file_name = file_name
 
-	def write(self, s):
+	def prelog(self):
 		self.log.close()
 		self.log = open(self.file_name, "w", 0)
 
 		LogFile.setup(self, game.board, game.players)
-
-		LogFile.write(self, s)
 		
 
 class HeadRequest(urllib2.Request):
