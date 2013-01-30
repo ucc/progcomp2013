@@ -50,9 +50,9 @@ class HttpReplay():
 	def readline(self):
 		
 		line = self.log.readline()
-		sys.stderr.write(sys.argv[0] + " : " + str(self) + " read \""+str(line) + "\" from address " + str(self.address) + "\n")
+		sys.stderr.write(sys.argv[0] + " : " + str(self.__class__.__name__) + " read \""+str(line.strip("\r\n")) + "\" from address " + str(self.address) + "\n")
 		if line == "":
-			sys.stderr.write(sys.argv[0] + " : " + str(self) + " retrieving from address " + str(self.address) + "\n")
+			sys.stderr.write(sys.argv[0] + " : " + str(self.__class__.__name__) + " retrieving from address " + str(self.address) + "\n")
 			date_mod = datetime.datetime.strptime(self.log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
 			self.log.close()
 
@@ -62,13 +62,15 @@ class HttpReplay():
 				next_log = urllib2.urlopen(HeadRequest(self.address))
 				date_new = datetime.datetime.strptime(next_log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
 
-			self.log = urllib2.urlopen(address)
+			self.log = urllib2.urlopen(self.address)
 			game.setup()
 			line = self.log.readline()
 
 
 		return line
 			
+	def close(self):
+		self.log.close()
 						
 def log(s):
 	if log_file != None:

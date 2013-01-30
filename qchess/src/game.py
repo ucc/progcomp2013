@@ -138,6 +138,7 @@ class ReplayThread(GameThread):
 		self.setup()
 
 	def setup(self):
+		sys.stderr.write("setup called for ReplayThread\n")
 		if True:
 			while self.src.readline().strip(" \r\n") != "# Initial board":
 				self.line_number += 1
@@ -172,6 +173,7 @@ class ReplayThread(GameThread):
 		count = 0
 		line = self.src.readline().strip(" \r\n")
 		while line != "# EOF":
+			sys.stderr.write(sys.argv[0] + " : " + str(self.__class__.__name__) + " read: " + str(line) + "\n")
 			count += 1
 			if self.max_lines != None and count > self.max_lines:
 				self.stop()
@@ -184,14 +186,17 @@ class ReplayThread(GameThread):
 
 			line = line.split(":")
 			result = line[len(line)-1].strip(" \r\n")
-			log(result)
+			
 
 			try:
 				self.board.update(result)
-			except:
+			except Exception, e:
+				sys.stderr.write("Exception! " + str(e.message) + "\n")
 				self.final_result = result
 				self.stop()
 				break
+
+			log(result)
 
 			[x,y] = map(int, result.split(" ")[0:2])
 			target = self.board.grid[x][y]
@@ -228,8 +233,10 @@ class ReplayThread(GameThread):
 			phase = (phase + 1) % 2
 			if phase == 0:
 				i = (i + 1) % 2
-
+			
 			line = self.src.readline().strip(" \r\n")
+
+		sys.stderr.write(sys.argv[0] + " : " + str(self.__class__.__name__) + " finished...\n")
 
 		if self.max_lines != None and self.max_lines > count:
 			sys.stderr.write(sys.argv[0] + " : Replaying from file; stopping at last line (" + str(count) + ")\n")

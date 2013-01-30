@@ -1251,9 +1251,9 @@ class HttpReplay():
 	def readline(self):
 		
 		line = self.log.readline()
-		sys.stderr.write(sys.argv[0] + " : " + str(self) + " read \""+str(line) + "\" from address " + str(self.address) + "\n")
+		sys.stderr.write(sys.argv[0] + " : " + str(self.__class__.__name__) + " read \""+str(line.strip("\r\n")) + "\" from address " + str(self.address) + "\n")
 		if line == "":
-			sys.stderr.write(sys.argv[0] + " : " + str(self) + " retrieving from address " + str(self.address) + "\n")
+			sys.stderr.write(sys.argv[0] + " : " + str(self.__class__.__name__) + " retrieving from address " + str(self.address) + "\n")
 			date_mod = datetime.datetime.strptime(self.log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
 			self.log.close()
 
@@ -1263,13 +1263,15 @@ class HttpReplay():
 				next_log = urllib2.urlopen(HeadRequest(self.address))
 				date_new = datetime.datetime.strptime(next_log.headers['last-modified'], "%a, %d %b %Y %H:%M:%S GMT")
 
-			self.log = urllib2.urlopen(address)
+			self.log = urllib2.urlopen(self.address)
 			game.setup()
 			line = self.log.readline()
 
 
 		return line
 			
+	def close(self):
+		self.log.close()
 						
 def log(s):
 	if log_file != None:
@@ -1421,6 +1423,7 @@ class ReplayThread(GameThread):
 		self.setup()
 
 	def setup(self):
+		sys.stderr.write("setup called for ReplayThread\n")
 		if True:
 			while self.src.readline().strip(" \r\n") != "# Initial board":
 				self.line_number += 1
@@ -1455,6 +1458,7 @@ class ReplayThread(GameThread):
 		count = 0
 		line = self.src.readline().strip(" \r\n")
 		while line != "# EOF":
+			sys.stderr.write(sys.argv[0] + " : " + str(self.__class__.__name__) + " read: " + str(line) + "\n")
 			count += 1
 			if self.max_lines != None and count > self.max_lines:
 				self.stop()
@@ -1467,14 +1471,17 @@ class ReplayThread(GameThread):
 
 			line = line.split(":")
 			result = line[len(line)-1].strip(" \r\n")
-			log(result)
+			
 
 			try:
 				self.board.update(result)
-			except:
+			except Exception, e:
+				sys.stderr.write("Exception! " + str(e.message) + "\n")
 				self.final_result = result
 				self.stop()
 				break
+
+			log(result)
 
 			[x,y] = map(int, result.split(" ")[0:2])
 			target = self.board.grid[x][y]
@@ -1511,8 +1518,10 @@ class ReplayThread(GameThread):
 			phase = (phase + 1) % 2
 			if phase == 0:
 				i = (i + 1) % 2
-
+			
 			line = self.src.readline().strip(" \r\n")
+
+		sys.stderr.write(sys.argv[0] + " : " + str(self.__class__.__name__) + " finished...\n")
 
 		if self.max_lines != None and self.max_lines > count:
 			sys.stderr.write(sys.argv[0] + " : Replaying from file; stopping at last line (" + str(count) + ")\n")
@@ -2321,4 +2330,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Wed Jan 30 17:03:00 WST 2013
+# EOF - created from make on Wed Jan 30 17:20:26 WST 2013
