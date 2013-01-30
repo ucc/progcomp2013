@@ -1204,12 +1204,15 @@ import datetime
 import urllib2
 
 class LogFile():
-	def __init__(self, file_name):	
+	def __init__(self, log):	
 		
-		self.log = open(file_name, "w", 0)
+		self.log = log
+		self.logged = []
 
 	def write(self, s):
-		self.log.write(str(datetime.datetime.now()) + " : " + s + "\n")
+		now = datetime.datetime.now()
+		self.log.write(str(now) + " : " + s + "\n")
+		self.logged.append((now, s))
 
 	def setup(self, board, players):
 		self.log.write("# Log starts " + str(datetime.datetime.now()) + "\n")
@@ -1224,16 +1227,34 @@ class LogFile():
 
 		self.log.write("# Start game\n")
 
+	def close(self):
+		self.log.write("# EOF\n")
+		self.log.close()
+
 class HttpLog(LogFile):
 	def __init__(self, file_name):
-		LogFile.__init__(self, file_name)
+		LogFile.__init__(self, open(file_name, "w", 0))
 		self.file_name = file_name
+		self.phase = 0
 
-	def prelog(self):
+	def write(self, s):
+		now = datetime.datetime.now()
+		self.logged.append((now, s))
+		
+		if self.phase == 0:
+			self.log.close()
+			self.log = open(self.file_name, "w", 0)
+			LogFile.setup(self, game.board, game.players)
+
+		elif self.phase == 1:
+			for message in self.logged[len(self.logged)-2:]:
+				self.log.write(str(message[0]) + " : " + message[1] + "\n")
+
+		self.phase = (self.phase + 1) % 2		
+		
+	def close(self):
+		self.log.write("# EOF\n")
 		self.log.close()
-		self.log = open(self.file_name, "w", 0)
-
-		LogFile.setup(self, game.board, game.players)
 		
 
 class HeadRequest(urllib2.Request):
@@ -1354,15 +1375,15 @@ class GameThread(StoppableThread):
 					if self.stopped():
 						break
 
-					if isinstance(log_file, HttpLog):
-						log_file.prelog()
+					result = str(x) + " " + str(y) + " -> " + str(x2) + " " + str(y2)
+					log(result)
 
 					self.board.update_move(x, y, x2, y2)
-					result = str(x) + " " + str(y) + " -> " + str(x2) + " " + str(y2)
+					
 					for p2 in self.players:
 						p2.update(result) # Inform players of what happened
 
-					log(result)					
+										
 
 					if isinstance(graphics, GraphicsThread):
 						with graphics.lock:
@@ -1422,108 +1443,94 @@ class ReplayThread(GameThread):
 		self.line_number = 0
 		self.end = end
 
-		self.setup()
+		self.reset_board(self.src.readline())
 
-	def setup(self):
-		sys.stderr.write("setup called for ReplayThread\n")
-		if True:
-			while self.src.readline().strip(" \r\n") != "# Initial board":
-				self.line_number += 1
+	def reset_board(self, line):
+		pieces = {"white" : [], "black" : []}
+		king = {"white" : None, "black" : None}
+		for x in range(w):
+			for y in range(h):
+				self.board.grid[x][y] = None
+		while line != "# Start game":
+			tokens = line.split(" ")
+			[x, y] = map(int, tokens[len(tokens)-1].split(","))
+			current_type = tokens[1]
+			types = map(lambda e : e.strip("'[], "), tokens[2].split(","))
+
+			target = Piece(tokens[0], x, y, current_type)
+			try:
+				target.choice = types.index(current_type)
+			except:
+				target.choice = -1
+
+			pieces[token[0]].append(target)
+			if target.current_type == "king":
+				king[token[0]] = target
 		
 			line = self.src.readline().strip(" \r\n")
-			
-			while line != "# Start game":
-				#print "Reading line " + str(line)
-				self.line_number += 1
-				[x,y] = map(int, line.split("at")[1].strip(" \r\n").split(","))
-				colour = line.split(" ")[0]
-				current_type = line.split(" ")[1]
-				types = map(lambda e : e.strip(" [],'"), line.split(" ")[2:4])
-				p = Piece(colour, x, y, types)
-				if current_type != "unknown":
-					p.current_type = current_type
-					p.choice = types.index(current_type)
 
-				self.board.pieces[colour].append(p)
-				self.board.grid[x][y] = p
-				if current_type == "king":
-					self.board.king[colour] = p
-
-				line = self.src.readline().strip(" \r\n")
-				
-		#except Exception, e:
-		#	raise Exception("FILE line: " + str(self.line_number) + " \""+str(line)+"\"") #\n" + e.message)
+		self.board.pieces = pieces
+		self.board.king = king
 	
 	def run(self):
-		i = 0
-		phase = 0
-		count = 0
+		move_count = 0
 		line = self.src.readline().strip(" \r\n")
 		while line != "# EOF":
-			sys.stderr.write(sys.argv[0] + " : " + str(self.__class__.__name__) + " read: " + str(line) + "\n")
-			count += 1
-			if self.max_lines != None and count > self.max_lines:
-				self.stop()
-
 			if self.stopped():
 				break
 
-			with self.lock:
-				self.state["turn"] = self.players[i]
+					
 
-			line = line.split(":")
-			result = line[len(line)-1].strip(" \r\n")
-			
+			if line[0] == '#':
+				line = self.src.readline().strip(" \r\n")
+				continue
 
+			tokens = line.split(" ")
+			if tokens[0] == "white" or tokens[0] == "black":
+				self.reset_board(line)
+				line = self.src.readline().strip(" \r\n")
+				continue
+
+			move = line.split(":")[1]
+			tokens = move.split(" ")
 			try:
-				self.board.update(result)
-			except Exception, e:
-				sys.stderr.write("Exception! " + str(e.message) + "\n")
-				self.final_result = result
+				[x,y] = map(int, tokens[0:2])
+			except:
 				self.stop()
 				break
 
-			log(result)
-
-			[x,y] = map(int, result.split(" ")[0:2])
 			target = self.board.grid[x][y]
-
-			if isinstance(graphics, GraphicsThread):
-				if phase == 0:
-					with graphics.lock:
-						graphics.state["moves"] = self.board.possible_moves(target)
-						graphics.state["select"] = target
-
-					if self.end:
-						time.sleep(turn_delay)
-
-				elif phase == 1:
-					[x2,y2] = map(int, result.split(" ")[3:5])
-					with graphics.lock:
-						graphics.state["moves"] = [[x2,y2]]
-
-					if self.end:
-						time.sleep(turn_delay)
-
-					with graphics.lock:
-						graphics.state["select"] = None
-						graphics.state["dest"] = None
-						graphics.state["moves"] = None
-						
-
-
 			
+			move_piece = (tokens[2] == "->")
 
+			if move_piece:
+				[x2,y2] = map(int, tokens[len(tokens)-2:])
+
+			log(move)
+			self.board.update(move)
 			for p in self.players:
-				p.update(result)
+				p.update(move)
 			
-			phase = (phase + 1) % 2
-			if phase == 0:
-				i = (i + 1) % 2
-			
-			line = self.src.readline().strip(" \r\n")
+			if isinstance(graphics, GraphicsThread):
+				with self.lock:
+					if target.colour == "white":
+						self.state["turn"] = self.players[0]
+					else:
+						self.state["turn"] = self.players[1]
 
-		sys.stderr.write(sys.argv[0] + " : " + str(self.__class__.__name__) + " finished...\n")
+				with graphics.lock:
+					graphics.state["select"] = target
+					if move_piece:
+						graphics.state["moves"] = [[x2, y2]]
+					elif target.current_type != "unknown":
+						graphics.state["moves"] = self.board.possible_moves(target)
+					
+
+
+			
+
+				
+			
 
 		if self.max_lines != None and self.max_lines > count:
 			sys.stderr.write(sys.argv[0] + " : Replaying from file; stopping at last line (" + str(count) + ")\n")
@@ -2170,13 +2177,13 @@ def main(argv):
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
 			# Log file
 			if len(arg[2:].split("=")) == 1:
-				log_file = sys.stdout
+				log_file = LogFile(sys.stdout)
 			else:
 				f = arg[2:].split("=")[1]
 				if f[0] == '@':
 					log_file = HttpLog(f[1:])
 				else:
-					log_file = LogFile(f)
+					log_file = LogFile(open(f, "w", 0))
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "delay"):
 			# Delay
 			if len(arg[2:].split("=")) == 1:
@@ -2306,7 +2313,6 @@ def main(argv):
 	
 
 	if log_file != None and log_file != sys.stdout:
-		log_file.write("# EOF\n")
 		log_file.close()
 
 	if src_file != None and src_file != sys.stdin:
@@ -2332,4 +2338,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Wed Jan 30 18:01:41 WST 2013
+# EOF - created from make on Wed Jan 30 19:45:59 WST 2013

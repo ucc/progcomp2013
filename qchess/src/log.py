@@ -3,12 +3,15 @@ import datetime
 import urllib2
 
 class LogFile():
-	def __init__(self, file_name):	
+	def __init__(self, log):	
 		
-		self.log = open(file_name, "w", 0)
+		self.log = log
+		self.logged = []
 
 	def write(self, s):
-		self.log.write(str(datetime.datetime.now()) + " : " + s + "\n")
+		now = datetime.datetime.now()
+		self.log.write(str(now) + " : " + s + "\n")
+		self.logged.append((now, s))
 
 	def setup(self, board, players):
 		self.log.write("# Log starts " + str(datetime.datetime.now()) + "\n")
@@ -23,16 +26,34 @@ class LogFile():
 
 		self.log.write("# Start game\n")
 
+	def close(self):
+		self.log.write("# EOF\n")
+		self.log.close()
+
 class HttpLog(LogFile):
 	def __init__(self, file_name):
-		LogFile.__init__(self, file_name)
+		LogFile.__init__(self, open(file_name, "w", 0))
 		self.file_name = file_name
+		self.phase = 0
 
-	def prelog(self):
+	def write(self, s):
+		now = datetime.datetime.now()
+		self.logged.append((now, s))
+		
+		if self.phase == 0:
+			self.log.close()
+			self.log = open(self.file_name, "w", 0)
+			LogFile.setup(self, game.board, game.players)
+
+		elif self.phase == 1:
+			for message in self.logged[len(self.logged)-2:]:
+				self.log.write(str(message[0]) + " : " + message[1] + "\n")
+
+		self.phase = (self.phase + 1) % 2		
+		
+	def close(self):
+		self.log.write("# EOF\n")
 		self.log.close()
-		self.log = open(self.file_name, "w", 0)
-
-		LogFile.setup(self, game.board, game.players)
 		
 
 class HeadRequest(urllib2.Request):

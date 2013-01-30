@@ -127,13 +127,13 @@ def main(argv):
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
 			# Log file
 			if len(arg[2:].split("=")) == 1:
-				log_file = sys.stdout
+				log_file = LogFile(sys.stdout)
 			else:
 				f = arg[2:].split("=")[1]
 				if f[0] == '@':
 					log_file = HttpLog(f[1:])
 				else:
-					log_file = LogFile(f)
+					log_file = LogFile(open(f, "w", 0))
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "delay"):
 			# Delay
 			if len(arg[2:].split("=")) == 1:
@@ -263,7 +263,6 @@ def main(argv):
 	
 
 	if log_file != None and log_file != sys.stdout:
-		log_file.write("# EOF\n")
 		log_file.close()
 
 	if src_file != None and src_file != sys.stdin:
