@@ -1,0 +1,88 @@
+<html>
+
+<head>
+<title> UCC::Progcomp 2013 - Getting qchess </title>
+</head>
+
+<body bgcolor=white>
+
+<p> qchess is a python2.7 implementation of <a href="http://research.cs.queensu.ca/Parallel/QuantumChess/QuantumChess.html"/>Quantum Chess</a> </p>
+
+<h1> tl;dr </h1>
+
+<table border="1">
+
+<tr> <th>  </th> <th> Binary </th> <th> Script (requires python2.7 and pygame1.9) </th> </tr>
+<tr> <th> Windows </th> <td> <a href="http://git.ucc.asn.au/?p=progcomp2013.git;a=blob;f=qchess/build/exe.win32-2.7.zip"/>32 bit</a> </td> <td> <a href="http://git.ucc.asn.au/?p=progcomp2013.git;a=blob_plain;f=qchess/qchess.py"/>qchess.py</a></td> </tr>
+<tr> <th> Linux </th> <td> <a href="http://git.ucc.asn.au/?p=progcomp2013.git;a=blob;f=qchess/build/exe.linux-x86_64-2.7.zip"/>64 bit</a></td> <td> <a href="http://git.ucc.asn.au/?p=progcomp2013.git;a=blob_plain;f=qchess/qchess.py"/>qchess.py</a></td> </tr>
+
+
+
+
+</table>
+
+<p> <b> Warning: </b> Some things in the windows version will not work. </p>
+<p> <b> Warning: </b> The actual competition will be run on linux. If your program doesn't work on linux, you may not be able to enter. </p>
+
+
+<hr>
+
+
+<h3> Git </h3>
+<p> The best way to do things is to use <a href="http://git-scm.com/"/>git</a> and clone the repository at <a href="http://git.ucc.asn.au/?p=progcomp2013.git"/>git://git.ucc.asn.au/progcomp2013.git</a>. Run "git pull" everytime a major change is announced.  </p>
+
+
+<hr>
+
+
+<h3> Files and Directories </h3>
+
+<ul>
+	<li> qchess/qchess.py - Python script version of qchess </li>
+	<li> agents/ - Where all the agents will go when the competition runs
+	<li> agents/sample.py - A sample agent in python </li>
+	<li> qchess/build/ - Compiled binaries of the qchess program </li>
+	<li> qchess/src/ - Source python files for qchess </li>
+	<li> web/ - This website </li>
+</ul>
+
+<hr>
+
+<h3> qchess.py </h3>
+
+<ul>
+
+	<li> You will need <a href="http://www.python.org/download/releases/2.7.3"/>python 2.7.3</a> </li>
+	<ul>	<li> On Debian/Ubuntu just run `sudo apt-get install python` </li>
+		<li> On Windows, download and install the x86 (32bit) MSI, <b>not</b> the x86-64 (64bit) MSI) </li> </ul>
+	<li> You will need <a href="http://www.pygame.org/download.shtml"/>pygame 1.9.1</a> </li>
+	<ul>	<li> On Debian/Ubuntu just run `sudo apt-get install python-pygame` </li>
+		<li> On Windows, ,ake sure you get the pygame for python 2.7 MSI </li> </ul>
+
+	<li> Hopefully, if you have those, things will just work (TM) </li>
+	<ul>	<li> In linux, navigate to the qchess directory, then run with ./qchess.py </li>
+		<li> In windows, the application <i>should</i> start when you double click on it </li>
+		<li> If you want to give command line arguments, you will need to use cmd on windows </li>
+	</ul>
+</ul>
+
+<hr>
+
+<h3> Compiled Binaries </h3>
+
+<p> <b> Warning:</b> I am no longer testing the binaries. I believe the linux binary works, but the Windows binary might not. </p>
+<p> If they work for you, that is awesome, but I recommend installing python and using the python script. </p>
+<p> You'll probably want to enter in python, since the python script gives you a lot of useful functions. </p>
+
+<p> <b> On the other hand... </b>, if you have problems with an incompatable version of python, try the binaries! </p>
+
+<hr>
+
+<p> Page last updated 2012-01-30 by matches </p>
+
+<p> <a href="http://www.ucc.asn.au">The UCC Website</a> </p>
+<p> <a href="http://progcomp.ucc.asn.au/2013">UCC::Progcomp 2013</a> </p>
+
+</body>
+</html>
+
