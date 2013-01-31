@@ -102,20 +102,15 @@ class GameThread(StoppableThread):
 			#		with self.lock:
 			#			self.final_result = self.state["turn"].colour + " " + e.message
 
-				if self.board.king["black"] == None:
-					if self.board.king["white"] == None:
-						with self.lock:
-							self.final_result = self.state["turn"].colour + " DRAW"
-					else:
-						with self.lock:
-							self.final_result = "white"
-					self.stop()
-				elif self.board.king["white"] == None:
+				end = self.board.end_condition()
+				if end != None:		
 					with self.lock:
-						self.final_result = "black"
+						if end == "DRAW":
+							self.final_result = self.state["turn"].colour + " " + end
+						else:
+							self.final_result = end
 					self.stop()
-						
-
+				
 				if self.stopped():
 					break
 
@@ -131,70 +126,71 @@ class GameThread(StoppableThread):
 	
 # A thread that replays a log file
 class ReplayThread(GameThread):
-	def __init__(self, players, src, end=False,max_lines=None):
+	def __init__(self, players, src, end=False,max_moves=None):
 		self.board = Board(style="empty")
+		self.board.max_moves = max_moves
 		GameThread.__init__(self, self.board, players)
 		self.src = src
-		self.max_lines = max_lines
-		self.line_number = 0
 		self.end = end
 
 		self.reset_board(self.src.readline())
 
 	def reset_board(self, line):
-		pieces = {"white" : [], "black" : []}
-		king = {"white" : None, "black" : None}
-		grid = [[None] * w for _ in range(h)]
-		for x in range(w):
-			for y in range(h):
-				self.board.grid[x][y] = None
-		while line != "# Start game":
-			if line[0] == "#":
+		agent_str = ""
+		self_str = ""
+		while line != "# Start game" and line != "# EOF":
+			
+			while line == "":
 				line = self.src.readline().strip(" \r\n")
 				continue
 
-			tokens = line.split(" ")
-			[x, y] = map(int, tokens[len(tokens)-1].split(","))
-			current_type = tokens[1]
-			types = map(lambda e : e.strip("'[], "), (tokens[2]+tokens[3]).split(","))
-			
-			target = Piece(tokens[0], x, y, types)
-			target.current_type = current_type
-			
-			try:
-				target.choice = types.index(current_type)
-			except:
-				target.choice = -1
+			if line[0] == '#':
+				line = self.src.readline().strip(" \r\n")
+				continue
 
-			pieces[tokens[0]].append(target)
-			if target.current_type == "king":
-				king[tokens[0]] = target
-			grid[x][y] = target
-		
+			self_str += line + "\n"
+
+			if self.players[0].name == "dummy" and self.players[1].name == "dummy":
+				line = self.src.readline().strip(" \r\n")
+				continue
+			
+			tokens = line.split(" ")
+			types = map(lambda e : e.strip("[] ,'"), tokens[2:4])
+			for i in range(len(types)):
+				if types[i][0] == "?":
+					types[i] = "unknown"
+
+			agent_str += tokens[0] + " " + tokens[1] + " " + str(types) + " ".join(tokens[4:]) + "\n"
 			line = self.src.readline().strip(" \r\n")
 
-		self.board.pieces = pieces
-		self.board.king = king
-		self.board.grid = grid
+		for p in self.players:
+			p.reset_board(agent_str)
+		
+		
+		self.board.reset_board(self_str)
 
-		# Update the player's boards
 	
 	def run(self):
 		move_count = 0
+		last_line = ""
 		line = self.src.readline().strip(" \r\n")
 		while line != "# EOF":
+
+
 			if self.stopped():
 				break
-
+			
 					
 
 			if line[0] == '#':
+				last_line = line
 				line = self.src.readline().strip(" \r\n")
 				continue
 
 			tokens = line.split(" ")
 			if tokens[0] == "white" or tokens[0] == "black":
 				self.reset_board(line)
+				last_line = line
 				line = self.src.readline().strip(" \r\n")
 				continue
 
@@ -206,6 +202,7 @@ class ReplayThread(GameThread):
 			try:
 				[x,y] = map(int, tokens[0:2])
 			except:
+				last_line = line
 				self.stop()
 				break
 
@@ -250,10 +247,15 @@ class ReplayThread(GameThread):
 			for p in self.players:
 				p.update(move)
 
+			last_line = line
 			line = self.src.readline().strip(" \r\n")
 			
 			
-					
+			end = self.board.end_condition()
+			if end != None:
+				self.final_result = end
+				self.stop()
+				break
 					
 						
 						
@@ -267,18 +269,28 @@ class ReplayThread(GameThread):
 				
 			
 
-		if self.max_lines != None and self.max_lines > count:
-			sys.stderr.write(sys.argv[0] + " : Replaying from file; stopping at last line (" + str(count) + ")\n")
-			sys.stderr.write(sys.argv[0] + " : (You requested line " + str(self.max_lines) + ")\n")
+		
 
 		if self.end and isinstance(graphics, GraphicsThread):
 			#graphics.stop()
 			pass # Let the user stop the display
-		elif not self.end:
+		elif not self.end and self.board.end_condition() == None:
 			global game
+			# Work out the last move
+					
+			t = last_line.split(" ")
+			if t[len(t)-2] == "black":
+				self.players.reverse()
+			elif t[len(t)-2] == "white":
+				pass
+			elif self.state["turn"] != None and self.state["turn"].colour == "white":
+				self.players.reverse()
+
+
 			game = GameThread(self.board, self.players)
 			game.run()
-		
+		else:
+			pass
 
 		
 

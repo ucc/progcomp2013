@@ -18,6 +18,9 @@ class Player():
 	def update(self, result):
 		pass
 
+	def reset_board(self, s):
+		pass
+
 # Player that runs from another process
 class ExternalAgent(Player):
 
@@ -84,6 +87,12 @@ class ExternalAgent(Player):
 		except:
 			raise Exception("GIBBERISH \"" + str(line) + "\"")
 		return result
+
+	def reset_board(self, s):
+		self.send_message("BOARD")
+		for line in s.split("\n"):
+			self.send_message(line.strip(" \r\n"))
+		self.send_message("END BOARD")
 
 	def quit(self, final_result):
 		try:
@@ -167,6 +176,9 @@ class InternalAgent(Player):
 		self.board.update(result)
 		self.board.verify()
 
+	def reset_board(self, s):
+		self.board.reset_board(s)
+
 	def quit(self, final_result):
 		pass
 
@@ -218,6 +230,14 @@ def run_agent(agent):
 			#sys.stderr.write(sys.argv[0] + " : Quitting\n")
 			agent.quit(" ".join(line.split(" ")[1:])) # Quits the game
 			break
+		elif line.split(" ")[0] == "BOARD":
+			s = ""
+			line = sys.stdin.readline().strip(" \r\n")
+			while line != "END BOARD":
+				s += line + "\n"
+				line = sys.stdin.readline().strip(" \r\n")
+			agent.board.reset_board(s)
+			
 		else:
 			agent.update(line) # Updates agent.board
 	return 0

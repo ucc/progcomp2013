@@ -13,12 +13,12 @@ class Piece():
 		self.types = types # List of possible types the piece can be (should just be two)
 		self.current_type = "unknown" # Current type
 		self.choice = -1 # Index of the current type in self.types (-1 = unknown type)
-		self.types_revealed = [True, False] # Whether the types are known (by default the first type is always known at game start)
 		
-
-		# 
+		
 		self.last_state = None
+		
 		self.move_pattern = None
+		self.coverage = None
 
 		
 
@@ -29,8 +29,7 @@ class Piece():
 		self.types = c.types[:]
 		self.current_type = c.current_type
 		self.choice = c.choice
-		self.types_revealed = c.types_revealed[:]
-
+		
 		self.last_state = None
 		self.move_pattern = None
 
@@ -58,7 +57,7 @@ class Piece():
 
 		# Draw the two possible types underneath the current_type image
 		for i in range(len(self.types)):
-			if always_reveal_states == True or self.types_revealed[i] == True:
+			if always_reveal_states == True or self.types[i][0] != '?':
 				img = small_images[self.colour][self.types[i]]
 			else:
 				img = small_images[self.colour]["unknown"] # If the type hasn't been revealed, show a placeholder
@@ -78,15 +77,16 @@ class Piece():
 	def select(self):
 		if self.current_type == "unknown":
 			self.choice = random.randint(0,1)
+			if self.types[self.choice][0] == '?':
+				self.types[self.choice] = self.types[self.choice][1:]
 			self.current_type = self.types[self.choice]
-			self.types_revealed[self.choice] = True
 		return self.choice
 
 	# Uncollapses (?) the wave function!
 	def deselect(self):
 		#print "Deselect called"
 		if (self.x + self.y) % 2 != 0:
-			if (self.types[0] != self.types[1]) or (self.types_revealed[0] == False or self.types_revealed[1] == False):
+			if (self.types[0] != self.types[1]) or (self.types[0][0] == '?' or self.types[1][0] == '?'):
 				self.current_type = "unknown"
 				self.choice = -1
 			else:

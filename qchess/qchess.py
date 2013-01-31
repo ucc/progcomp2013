@@ -14,12 +14,12 @@ class Piece():
 		self.types = types # List of possible types the piece can be (should just be two)
 		self.current_type = "unknown" # Current type
 		self.choice = -1 # Index of the current type in self.types (-1 = unknown type)
-		self.types_revealed = [True, False] # Whether the types are known (by default the first type is always known at game start)
 		
-
-		# 
+		
 		self.last_state = None
+		
 		self.move_pattern = None
+		self.coverage = None
 
 		
 
@@ -30,8 +30,7 @@ class Piece():
 		self.types = c.types[:]
 		self.current_type = c.current_type
 		self.choice = c.choice
-		self.types_revealed = c.types_revealed[:]
-
+		
 		self.last_state = None
 		self.move_pattern = None
 
@@ -59,7 +58,7 @@ class Piece():
 
 		# Draw the two possible types underneath the current_type image
 		for i in range(len(self.types)):
-			if always_reveal_states == True or self.types_revealed[i] == True:
+			if always_reveal_states == True or self.types[i][0] != '?':
 				img = small_images[self.colour][self.types[i]]
 			else:
 				img = small_images[self.colour]["unknown"] # If the type hasn't been revealed, show a placeholder
@@ -79,15 +78,16 @@ class Piece():
 	def select(self):
 		if self.current_type == "unknown":
 			self.choice = random.randint(0,1)
+			if self.types[self.choice][0] == '?':
+				self.types[self.choice] = self.types[self.choice][1:]
 			self.current_type = self.types[self.choice]
-			self.types_revealed[self.choice] = True
 		return self.choice
 
 	# Uncollapses (?) the wave function!
 	def deselect(self):
 		#print "Deselect called"
 		if (self.x + self.y) % 2 != 0:
-			if (self.types[0] != self.types[1]) or (self.types_revealed[0] == False or self.types_revealed[1] == False):
+			if (self.types[0] != self.types[1]) or (self.types[0][0] == '?' or self.types[1][0] == '?'):
 				self.current_type = "unknown"
 				self.choice = -1
 			else:
@@ -110,6 +110,8 @@ class Board():
 		self.grid = [[None] * w for _ in range(h)] # 2D List (you can get arrays in python, somehow, but they scare me)
 		self.unrevealed_types = {"white" : piece_types.copy(), "black" : piece_types.copy()}
 		self.king = {"white" : None, "black" : None} # We need to keep track of the king, because he is important
+		self.max_moves = None
+		self.moves = 0
 		for c in ["black", "white"]:
 			del self.unrevealed_types[c]["unknown"]
 
@@ -127,7 +129,6 @@ class Board():
 			c.append(Piece(s, 1, y, ["knight"]))
 			c.append(Piece(s, 2, y, ["bishop"]))
 			k = Piece(s, 3, y, ["king", "king"]) # There can only be one ruler!
-			k.types_revealed[1] = True
 			k.current_type = "king"
 			self.king[s] = k
 			c.append(k)
@@ -165,11 +166,10 @@ class Board():
 					types_left[choice] -= 1
 					if types_left[choice] <= 0:
 						del types_left[choice]
-					piece.types.append(choice)
+					piece.types.append('?' + choice)
 				elif style == "classical":
 					piece.types.append(piece.types[0])
 					piece.current_type = piece.types[0]
-					piece.types_revealed[1] = True
 					piece.choice = 0
 
 	def clone(self):
@@ -179,6 +179,40 @@ class Board():
 
 		for i in range(len(mypieces)):
 			newpieces[i].init_from_copy(mypieces[i])
+	
+	# Reset the board from a string
+	def reset_board(self, s):
+		self.pieces = {"white" : [], "black" : []}
+		self.king = {"white" : None, "black" : None}
+		self.grid = [[None] * w for _ in range(h)]
+		for x in range(w):
+			for y in range(h):
+				self.grid[x][y] = None
+
+		for line in s.split("\n"):
+			if line == "":
+				continue
+			if line[0] == "#":
+				continue
+
+			tokens = line.split(" ")
+			[x, y] = map(int, tokens[len(tokens)-1].split(","))
+			current_type = tokens[1]
+			types = map(lambda e : e.strip(" '[],"), line.split('[')[1].split(']')[0].split(','))
+			
+			target = Piece(tokens[0], x, y, types)
+			target.current_type = current_type
+			
+			try:
+				target.choice = types.index(current_type)
+			except:
+				target.choice = -1
+
+			self.pieces[tokens[0]].append(target)
+			if target.current_type == "king":
+				self.king[tokens[0]] = target
+
+			self.grid[x][y] = target
 			
 
 	def display_grid(self, window = None, grid_sz = [80,80]):
@@ -244,7 +278,6 @@ class Board():
 				del self.unrevealed_types[piece.colour][state]
 
 		piece.types[type_index] = state
-		piece.types_revealed[type_index] = True
 		piece.current_type = state
 
 		if len(self.possible_moves(piece)) <= 0:
@@ -275,7 +308,8 @@ class Board():
 			piece.current_type = "queen"
 
 		piece.deselect() # Uncollapse (?) the wavefunction!
-		self.verify()	
+		self.moves += 1
+		#self.verify()	
 
 	# Update the board from a string
 	# Guesses what to do based on the format of the string
@@ -357,7 +391,7 @@ class Board():
 		for i in range(len(p.types)):
 			t = p.types[i]
 			prob = 0.5
-			if t == "unknown" or p.types_revealed[i] == False:
+			if t == "unknown" or p.types[i][0] == '?':
 				total_types = 0
 				for t2 in self.unrevealed_types[p.colour].keys():
 					total_types += self.unrevealed_types[p.colour][t2]
@@ -385,7 +419,7 @@ class Board():
 			if t == state:
 				result += prob
 				continue	
-			if t == "unknown" or p.types_revealed[i] == False:
+			if t == "unknown" or p.types[i][0] == '?':
 				total_prob = 0
 				for t2 in self.unrevealed_types[p.colour].keys():
 					total_prob += self.unrevealed_types[p.colour][t2]
@@ -498,6 +532,19 @@ class Board():
 					
 		return p
 
+	# Returns "white", "black" or "DRAW" if the game should end
+	def end_condition(self):
+		if self.king["white"] == None:
+			if self.king["black"] == None:
+				return "DRAW" # This shouldn't happen
+			return "black"
+		elif self.king["black"] == None:
+			return "white"
+		elif len(self.pieces["white"]) == 1 and len(self.pieces["black"]) == 1:
+			return "DRAW"
+		elif self.max_moves != None and self.moves > self.max_moves:
+			return "DRAW"
+		return None
 
 
 	# I typed the full statement about 30 times before writing this function...
@@ -522,6 +569,9 @@ class Player():
 		self.colour = colour
 
 	def update(self, result):
+		pass
+
+	def reset_board(self, s):
 		pass
 
 # Player that runs from another process
@@ -590,6 +640,12 @@ class ExternalAgent(Player):
 		except:
 			raise Exception("GIBBERISH \"" + str(line) + "\"")
 		return result
+
+	def reset_board(self, s):
+		self.send_message("BOARD")
+		for line in s.split("\n"):
+			self.send_message(line.strip(" \r\n"))
+		self.send_message("END BOARD")
 
 	def quit(self, final_result):
 		try:
@@ -673,6 +729,9 @@ class InternalAgent(Player):
 		self.board.update(result)
 		self.board.verify()
 
+	def reset_board(self, s):
+		self.board.reset_board(s)
+
 	def quit(self, final_result):
 		pass
 
@@ -724,6 +783,14 @@ def run_agent(agent):
 			#sys.stderr.write(sys.argv[0] + " : Quitting\n")
 			agent.quit(" ".join(line.split(" ")[1:])) # Quits the game
 			break
+		elif line.split(" ")[0] == "BOARD":
+			s = ""
+			line = sys.stdin.readline().strip(" \r\n")
+			while line != "END BOARD":
+				s += line + "\n"
+				line = sys.stdin.readline().strip(" \r\n")
+			agent.board.reset_board(s)
+			
 		else:
 			agent.update(line) # Updates agent.board
 	return 0
@@ -743,7 +810,7 @@ class ExternalWrapper(ExternalAgent):
 # A sample agent
 
 
-class AgentBishop(InternalAgent): # Inherits from InternalAgent (in qchess)
+class AgentBishop(AgentRandom): # Inherits from AgentRandom (in qchess)
 	def __init__(self, name, colour):
 		InternalAgent.__init__(self, name, colour)
 		self.value = {"pawn" : 1, "bishop" : 3, "knight" : 3, "rook" : 5, "queen" : 9, "king" : 100, "unknown" : 4}
@@ -905,6 +972,7 @@ class AgentBishop(InternalAgent): # Inherits from InternalAgent (in qchess)
 	def select(self):
 		#sys.stderr.write("Getting choice...")
 		self.choice = self.select_best(self.colour)[0]
+		
 		#sys.stderr.write(" Done " + str(self.choice)+"\n")
 		return [self.choice.x, self.choice.y]
 	
@@ -916,7 +984,7 @@ class AgentBishop(InternalAgent): # Inherits from InternalAgent (in qchess)
 		if len(moves) > 0:
 			return moves[0][0]
 		else:
-			return InternalAgent.get_move(self)
+			return AgentRandom.get_move(self)
 
 # --- agent_bishop.py --- #
 import multiprocessing
@@ -1199,7 +1267,7 @@ class StoppableThread(threading.Thread):
 	def stopped(self):
 		return self._stop.isSet()
 # --- thread_util.py --- #
-log_file = None
+log_files = []
 import datetime
 import urllib2
 
@@ -1230,11 +1298,16 @@ class LogFile():
 
 	def close(self):
 		self.log.write("# EOF\n")
-		self.log.close()
+		if self.log != sys.stdout:
+			self.log.close()
 
-class HttpLog(LogFile):
+class ShortLog(LogFile):
 	def __init__(self, file_name):
-		LogFile.__init__(self, open(file_name, "w", 0))
+		if file_name == "":
+			self.log = sys.stdout
+		else:
+			self.log = open(file_name, "w", 0)
+		LogFile.__init__(self, self.log)
 		self.file_name = file_name
 		self.phase = 0
 
@@ -1243,8 +1316,9 @@ class HttpLog(LogFile):
 		self.logged.append((now, s))
 		
 		if self.phase == 0:
-			self.log.close()
-			self.log = open(self.file_name, "w", 0)
+			if self.log != sys.stdout:
+				self.log.close()
+				self.log = open(self.file_name, "w", 0)
 			self.log.write("# Short log updated " + str(datetime.datetime.now()) + "\n")	
 			LogFile.setup(self, game.board, game.players)
 
@@ -1255,8 +1329,12 @@ class HttpLog(LogFile):
 		self.phase = (self.phase + 1) % 2		
 		
 	def close(self):
+		if self.phase == 1:
+			ending = self.logged[len(self.logged)-1]
+			self.log.write(str(ending[0]) + " : " + ending[1] + "\n")
 		self.log.write("# EOF\n")
-		self.log.close()
+		if self.log != sys.stdout:
+			self.log.close()
 		
 
 class HeadRequest(urllib2.Request):
@@ -1324,13 +1402,13 @@ class HttpReplay():
 		self.getter.stop()
 						
 def log(s):
-	if log_file != None:
-		log_file.write(s)
+	for l in log_files:
+		l.write(s)
 		
 
 def log_init(board, players):
-	if log_file != None:
-		log_file.setup(board, players)
+	for l in log_files:
+		l.setup(board, players)
 
 # --- log.py --- #
 
@@ -1437,20 +1515,15 @@ class GameThread(StoppableThread):
 			#		with self.lock:
 			#			self.final_result = self.state["turn"].colour + " " + e.message
 
-				if self.board.king["black"] == None:
-					if self.board.king["white"] == None:
-						with self.lock:
-							self.final_result = self.state["turn"].colour + " DRAW"
-					else:
-						with self.lock:
-							self.final_result = "white"
-					self.stop()
-				elif self.board.king["white"] == None:
+				end = self.board.end_condition()
+				if end != None:		
 					with self.lock:
-						self.final_result = "black"
+						if end == "DRAW":
+							self.final_result = self.state["turn"].colour + " " + end
+						else:
+							self.final_result = end
 					self.stop()
-						
-
+				
 				if self.stopped():
 					break
 
@@ -1466,70 +1539,71 @@ class GameThread(StoppableThread):
 	
 # A thread that replays a log file
 class ReplayThread(GameThread):
-	def __init__(self, players, src, end=False,max_lines=None):
+	def __init__(self, players, src, end=False,max_moves=None):
 		self.board = Board(style="empty")
+		self.board.max_moves = max_moves
 		GameThread.__init__(self, self.board, players)
 		self.src = src
-		self.max_lines = max_lines
-		self.line_number = 0
 		self.end = end
 
 		self.reset_board(self.src.readline())
 
 	def reset_board(self, line):
-		pieces = {"white" : [], "black" : []}
-		king = {"white" : None, "black" : None}
-		grid = [[None] * w for _ in range(h)]
-		for x in range(w):
-			for y in range(h):
-				self.board.grid[x][y] = None
-		while line != "# Start game":
-			if line[0] == "#":
+		agent_str = ""
+		self_str = ""
+		while line != "# Start game" and line != "# EOF":
+			
+			while line == "":
 				line = self.src.readline().strip(" \r\n")
 				continue
 
-			tokens = line.split(" ")
-			[x, y] = map(int, tokens[len(tokens)-1].split(","))
-			current_type = tokens[1]
-			types = map(lambda e : e.strip("'[], "), (tokens[2]+tokens[3]).split(","))
-			
-			target = Piece(tokens[0], x, y, types)
-			target.current_type = current_type
-			
-			try:
-				target.choice = types.index(current_type)
-			except:
-				target.choice = -1
+			if line[0] == '#':
+				line = self.src.readline().strip(" \r\n")
+				continue
 
-			pieces[tokens[0]].append(target)
-			if target.current_type == "king":
-				king[tokens[0]] = target
-			grid[x][y] = target
-		
+			self_str += line + "\n"
+
+			if self.players[0].name == "dummy" and self.players[1].name == "dummy":
+				line = self.src.readline().strip(" \r\n")
+				continue
+			
+			tokens = line.split(" ")
+			types = map(lambda e : e.strip("[] ,'"), tokens[2:4])
+			for i in range(len(types)):
+				if types[i][0] == "?":
+					types[i] = "unknown"
+
+			agent_str += tokens[0] + " " + tokens[1] + " " + str(types) + " ".join(tokens[4:]) + "\n"
 			line = self.src.readline().strip(" \r\n")
 
-		self.board.pieces = pieces
-		self.board.king = king
-		self.board.grid = grid
+		for p in self.players:
+			p.reset_board(agent_str)
+		
+		
+		self.board.reset_board(self_str)
 
-		# Update the player's boards
 	
 	def run(self):
 		move_count = 0
+		last_line = ""
 		line = self.src.readline().strip(" \r\n")
 		while line != "# EOF":
+
+
 			if self.stopped():
 				break
-
+			
 					
 
 			if line[0] == '#':
+				last_line = line
 				line = self.src.readline().strip(" \r\n")
 				continue
 
 			tokens = line.split(" ")
 			if tokens[0] == "white" or tokens[0] == "black":
 				self.reset_board(line)
+				last_line = line
 				line = self.src.readline().strip(" \r\n")
 				continue
 
@@ -1541,6 +1615,7 @@ class ReplayThread(GameThread):
 			try:
 				[x,y] = map(int, tokens[0:2])
 			except:
+				last_line = line
 				self.stop()
 				break
 
@@ -1585,10 +1660,15 @@ class ReplayThread(GameThread):
 			for p in self.players:
 				p.update(move)
 
+			last_line = line
 			line = self.src.readline().strip(" \r\n")
 			
 			
-					
+			end = self.board.end_condition()
+			if end != None:
+				self.final_result = end
+				self.stop()
+				break
 					
 						
 						
@@ -1602,18 +1682,28 @@ class ReplayThread(GameThread):
 				
 			
 
-		if self.max_lines != None and self.max_lines > count:
-			sys.stderr.write(sys.argv[0] + " : Replaying from file; stopping at last line (" + str(count) + ")\n")
-			sys.stderr.write(sys.argv[0] + " : (You requested line " + str(self.max_lines) + ")\n")
+		
 
 		if self.end and isinstance(graphics, GraphicsThread):
 			#graphics.stop()
 			pass # Let the user stop the display
-		elif not self.end:
+		elif not self.end and self.board.end_condition() == None:
 			global game
+			# Work out the last move
+					
+			t = last_line.split(" ")
+			if t[len(t)-2] == "black":
+				self.players.reverse()
+			elif t[len(t)-2] == "white":
+				pass
+			elif self.state["turn"] != None and self.state["turn"].colour == "white":
+				self.players.reverse()
+
+
 			game = GameThread(self.board, self.players)
 			game.run()
-		
+		else:
+			pass
 
 		
 
@@ -2184,12 +2274,12 @@ def main(argv):
 	
 	global turn_delay
 	global agent_timeout
-	global log_file
+	global log_files
 	global src_file
 	global graphics_enabled
 	global always_reveal_states
 
-	max_lines = None
+	max_moves = None
 	src_file = None
 	
 	style = "quantum"
@@ -2236,24 +2326,24 @@ def main(argv):
 				src_file = sys.stdin
 			else:
 				f = arg[2:].split("=")[1]
-				if f[0] == '@':
-					src_file = HttpReplay("http://" + f.split(":")[0][1:])
+				if f[0:7] == "http://":
+					src_file = HttpReplay(f)
 				else:
 					src_file = open(f.split(":")[0], "r", 0)
 
-				if len(f.split(":")) == 2:
-					max_lines = int(f.split(":")[1])
+					if len(f.split(":")) == 2:
+						max_moves = int(f.split(":")[1])
 
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
 			# Log file
 			if len(arg[2:].split("=")) == 1:
-				log_file = LogFile(sys.stdout)
+				log_files.append(LogFile(sys.stdout))
 			else:
 				f = arg[2:].split("=")[1]
 				if f[0] == '@':
-					log_file = HttpLog(f[1:])
+					log_files.append(ShortLog(f[1:]))
 				else:
-					log_file = LogFile(open(f, "w", 0))
+					log_files.append(LogFile(open(f, "w", 0)))
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "delay"):
 			# Delay
 			if len(arg[2:].split("=")) == 1:
@@ -2293,10 +2383,12 @@ def main(argv):
 			if graphics_enabled:
 				sys.stderr.write(sys.argv[0] + " : (You won't get a GUI, because --file was used, and the author is lazy)\n")
 			return 44
-		game = ReplayThread(players, src_file, end=end, max_lines=max_lines)
+		game = ReplayThread(players, src_file, end=end, max_moves=max_moves)
 	else:
 		board = Board(style)
+		board.max_moves = max_moves
 		game = GameThread(board, players) 
+
 
 
 
@@ -2382,8 +2474,8 @@ def main(argv):
 		error = game.error
 	
 
-	if log_file != None and log_file != sys.stdout:
-		log_file.close()
+	for l in log_files:
+		l.close()
 
 	if src_file != None and src_file != sys.stdin:
 		src_file.close()
@@ -2408,4 +2500,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Wed Jan 30 21:00:29 WST 2013
+# EOF - created from make on Thu Jan 31 13:37:15 WST 2013

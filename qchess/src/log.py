@@ -1,4 +1,4 @@
-log_file = None
+log_files = []
 import datetime
 import urllib2
 
@@ -29,11 +29,16 @@ class LogFile():
 
 	def close(self):
 		self.log.write("# EOF\n")
-		self.log.close()
+		if self.log != sys.stdout:
+			self.log.close()
 
-class HttpLog(LogFile):
+class ShortLog(LogFile):
 	def __init__(self, file_name):
-		LogFile.__init__(self, open(file_name, "w", 0))
+		if file_name == "":
+			self.log = sys.stdout
+		else:
+			self.log = open(file_name, "w", 0)
+		LogFile.__init__(self, self.log)
 		self.file_name = file_name
 		self.phase = 0
 
@@ -42,8 +47,9 @@ class HttpLog(LogFile):
 		self.logged.append((now, s))
 		
 		if self.phase == 0:
-			self.log.close()
-			self.log = open(self.file_name, "w", 0)
+			if self.log != sys.stdout:
+				self.log.close()
+				self.log = open(self.file_name, "w", 0)
 			self.log.write("# Short log updated " + str(datetime.datetime.now()) + "\n")	
 			LogFile.setup(self, game.board, game.players)
 
@@ -54,8 +60,12 @@ class HttpLog(LogFile):
 		self.phase = (self.phase + 1) % 2		
 		
 	def close(self):
+		if self.phase == 1:
+			ending = self.logged[len(self.logged)-1]
+			self.log.write(str(ending[0]) + " : " + ending[1] + "\n")
 		self.log.write("# EOF\n")
-		self.log.close()
+		if self.log != sys.stdout:
+			self.log.close()
 		
 
 class HeadRequest(urllib2.Request):
@@ -123,11 +133,11 @@ class HttpReplay():
 		self.getter.stop()
 						
 def log(s):
-	if log_file != None:
-		log_file.write(s)
+	for l in log_files:
+		l.write(s)
 		
 
 def log_init(board, players):
-	if log_file != None:
-		log_file.setup(board, players)
+	for l in log_files:
+		l.setup(board, players)
 

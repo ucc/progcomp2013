@@ -64,12 +64,12 @@ def main(argv):
 	
 	global turn_delay
 	global agent_timeout
-	global log_file
+	global log_files
 	global src_file
 	global graphics_enabled
 	global always_reveal_states
 
-	max_lines = None
+	max_moves = None
 	src_file = None
 	
 	style = "quantum"
@@ -116,24 +116,24 @@ def main(argv):
 				src_file = sys.stdin
 			else:
 				f = arg[2:].split("=")[1]
-				if f[0] == '@':
-					src_file = HttpReplay("http://" + f.split(":")[0][1:])
+				if f[0:7] == "http://":
+					src_file = HttpReplay(f)
 				else:
 					src_file = open(f.split(":")[0], "r", 0)
 
-				if len(f.split(":")) == 2:
-					max_lines = int(f.split(":")[1])
+					if len(f.split(":")) == 2:
+						max_moves = int(f.split(":")[1])
 
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
 			# Log file
 			if len(arg[2:].split("=")) == 1:
-				log_file = LogFile(sys.stdout)
+				log_files.append(LogFile(sys.stdout))
 			else:
 				f = arg[2:].split("=")[1]
 				if f[0] == '@':
-					log_file = HttpLog(f[1:])
+					log_files.append(ShortLog(f[1:]))
 				else:
-					log_file = LogFile(open(f, "w", 0))
+					log_files.append(LogFile(open(f, "w", 0)))
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "delay"):
 			# Delay
 			if len(arg[2:].split("=")) == 1:
@@ -173,10 +173,12 @@ def main(argv):
 			if graphics_enabled:
 				sys.stderr.write(sys.argv[0] + " : (You won't get a GUI, because --file was used, and the author is lazy)\n")
 			return 44
-		game = ReplayThread(players, src_file, end=end, max_lines=max_lines)
+		game = ReplayThread(players, src_file, end=end, max_moves=max_moves)
 	else:
 		board = Board(style)
+		board.max_moves = max_moves
 		game = GameThread(board, players) 
+
 
 
 
@@ -262,8 +264,8 @@ def main(argv):
 		error = game.error
 	
 
-	if log_file != None and log_file != sys.stdout:
-		log_file.close()
+	for l in log_files:
+		l.close()
 
 	if src_file != None and src_file != sys.stdin:
 		src_file.close()

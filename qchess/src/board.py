@@ -13,6 +13,8 @@ class Board():
 		self.grid = [[None] * w for _ in range(h)] # 2D List (you can get arrays in python, somehow, but they scare me)
 		self.unrevealed_types = {"white" : piece_types.copy(), "black" : piece_types.copy()}
 		self.king = {"white" : None, "black" : None} # We need to keep track of the king, because he is important
+		self.max_moves = None
+		self.moves = 0
 		for c in ["black", "white"]:
 			del self.unrevealed_types[c]["unknown"]
 
@@ -30,7 +32,6 @@ class Board():
 			c.append(Piece(s, 1, y, ["knight"]))
 			c.append(Piece(s, 2, y, ["bishop"]))
 			k = Piece(s, 3, y, ["king", "king"]) # There can only be one ruler!
-			k.types_revealed[1] = True
 			k.current_type = "king"
 			self.king[s] = k
 			c.append(k)
@@ -68,11 +69,10 @@ class Board():
 					types_left[choice] -= 1
 					if types_left[choice] <= 0:
 						del types_left[choice]
-					piece.types.append(choice)
+					piece.types.append('?' + choice)
 				elif style == "classical":
 					piece.types.append(piece.types[0])
 					piece.current_type = piece.types[0]
-					piece.types_revealed[1] = True
 					piece.choice = 0
 
 	def clone(self):
@@ -82,6 +82,40 @@ class Board():
 
 		for i in range(len(mypieces)):
 			newpieces[i].init_from_copy(mypieces[i])
+	
+	# Reset the board from a string
+	def reset_board(self, s):
+		self.pieces = {"white" : [], "black" : []}
+		self.king = {"white" : None, "black" : None}
+		self.grid = [[None] * w for _ in range(h)]
+		for x in range(w):
+			for y in range(h):
+				self.grid[x][y] = None
+
+		for line in s.split("\n"):
+			if line == "":
+				continue
+			if line[0] == "#":
+				continue
+
+			tokens = line.split(" ")
+			[x, y] = map(int, tokens[len(tokens)-1].split(","))
+			current_type = tokens[1]
+			types = map(lambda e : e.strip(" '[],"), line.split('[')[1].split(']')[0].split(','))
+			
+			target = Piece(tokens[0], x, y, types)
+			target.current_type = current_type
+			
+			try:
+				target.choice = types.index(current_type)
+			except:
+				target.choice = -1
+
+			self.pieces[tokens[0]].append(target)
+			if target.current_type == "king":
+				self.king[tokens[0]] = target
+
+			self.grid[x][y] = target
 			
 
 	def display_grid(self, window = None, grid_sz = [80,80]):
@@ -147,7 +181,6 @@ class Board():
 				del self.unrevealed_types[piece.colour][state]
 
 		piece.types[type_index] = state
-		piece.types_revealed[type_index] = True
 		piece.current_type = state
 
 		if len(self.possible_moves(piece)) <= 0:
@@ -178,7 +211,8 @@ class Board():
 			piece.current_type = "queen"
 
 		piece.deselect() # Uncollapse (?) the wavefunction!
-		self.verify()	
+		self.moves += 1
+		#self.verify()	
 
 	# Update the board from a string
 	# Guesses what to do based on the format of the string
@@ -260,7 +294,7 @@ class Board():
 		for i in range(len(p.types)):
 			t = p.types[i]
 			prob = 0.5
-			if t == "unknown" or p.types_revealed[i] == False:
+			if t == "unknown" or p.types[i][0] == '?':
 				total_types = 0
 				for t2 in self.unrevealed_types[p.colour].keys():
 					total_types += self.unrevealed_types[p.colour][t2]
@@ -288,7 +322,7 @@ class Board():
 			if t == state:
 				result += prob
 				continue	
-			if t == "unknown" or p.types_revealed[i] == False:
+			if t == "unknown" or p.types[i][0] == '?':
 				total_prob = 0
 				for t2 in self.unrevealed_types[p.colour].keys():
 					total_prob += self.unrevealed_types[p.colour][t2]
@@ -401,6 +435,19 @@ class Board():
 					
 		return p
 
+	# Returns "white", "black" or "DRAW" if the game should end
+	def end_condition(self):
+		if self.king["white"] == None:
+			if self.king["black"] == None:
+				return "DRAW" # This shouldn't happen
+			return "black"
+		elif self.king["black"] == None:
+			return "white"
+		elif len(self.pieces["white"]) == 1 and len(self.pieces["black"]) == 1:
+			return "DRAW"
+		elif self.max_moves != None and self.moves > self.max_moves:
+			return "DRAW"
+		return None
 
 
 	# I typed the full statement about 30 times before writing this function...

@@ -1,7 +1,7 @@
 # A sample agent
 
 
-class AgentBishop(InternalAgent): # Inherits from InternalAgent (in qchess)
+class AgentBishop(AgentRandom): # Inherits from AgentRandom (in qchess)
 	def __init__(self, name, colour):
 		InternalAgent.__init__(self, name, colour)
 		self.value = {"pawn" : 1, "bishop" : 3, "knight" : 3, "rook" : 5, "queen" : 9, "king" : 100, "unknown" : 4}
@@ -163,6 +163,7 @@ class AgentBishop(InternalAgent): # Inherits from InternalAgent (in qchess)
 	def select(self):
 		#sys.stderr.write("Getting choice...")
 		self.choice = self.select_best(self.colour)[0]
+		
 		#sys.stderr.write(" Done " + str(self.choice)+"\n")
 		return [self.choice.x, self.choice.y]
 	
@@ -174,5 +175,5 @@ class AgentBishop(InternalAgent): # Inherits from InternalAgent (in qchess)
 		if len(moves) > 0:
 			return moves[0][0]
 		else:
-			return InternalAgent.get_move(self)
+			return AgentRandom.get_move(self)
 
