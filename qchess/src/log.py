@@ -131,6 +131,43 @@ class HttpReplay():
 			
 	def close(self):
 		self.getter.stop()
+
+class FileReplay():
+	def __init__(self, filename):
+		self.f = open(filename, "r", 0)
+		self.filename = filename
+		self.mod = os.path.getmtime(filename)
+		self.count = 0
+	
+	def readline(self):
+		line = self.f.readline()
+		
+		while line == "":
+			mod2 = os.path.getmtime(self.filename)
+			if mod2 > self.mod:
+				#sys.stderr.write("File changed!\n")
+				self.mod = mod2
+				self.f.close()
+				self.f = open(self.filename, "r", 0)
+				
+				new_line = self.f.readline()
+				
+				if " ".join(new_line.split(" ")[0:3]) != "# Short log":
+					for i in range(self.count):
+						new_line = self.f.readline()
+						#sys.stderr.write("Read back " + str(i) + ": " + str(new_line) + "\n")
+					new_line = self.f.readline()
+				else:
+					self.count = 0
+				
+				line = new_line
+
+		self.count += 1
+		return line
+
+	def close(self):
+		self.f.close()
+		
 						
 def log(s):
 	for l in log_files:

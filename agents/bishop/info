@@ -1,0 +1,5 @@
+bishop.py --no-graphics
+Sam Moore
+python
+A wrapper to qchess.AgentBishop (allows it to run as an external agent). See qchess/src/agent_bishop.py.
+This agent uses a min/max probability based scoring algorithm with a recursion depth of a couple of turns.

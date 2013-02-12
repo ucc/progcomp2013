@@ -109,7 +109,9 @@ def main(argv):
 		elif arg[1] == '-' and arg[2:] == "reveal":
 			always_reveal_states = True
 		elif (arg[1] == '-' and arg[2:] == "graphics"):
-			graphics_enabled = not graphics_enabled
+			graphics_enabled = True
+		elif (arg[1] == '-' and arg[2:] == "no-graphics"):
+			graphics_enabled = False
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "file"):
 			# Load game from file
 			if len(arg[2:].split("=")) == 1:
@@ -119,7 +121,7 @@ def main(argv):
 				if f[0:7] == "http://":
 					src_file = HttpReplay(f)
 				else:
-					src_file = open(f.split(":")[0], "r", 0)
+					src_file = FileReplay(f.split(":")[0])
 
 					if len(f.split(":")) == 2:
 						max_moves = int(f.split(":")[1])
@@ -269,6 +271,8 @@ def main(argv):
 
 	if src_file != None and src_file != sys.stdin:
 		src_file.close()
+
+	sys.stdout.write(game.final_result + "\n")
 
 	return error
 

@@ -180,6 +180,8 @@ class ReplayThread(GameThread):
 			if self.stopped():
 				break
 			
+			if len(line) <= 0:
+				continue
 					
 
 			if line[0] == '#':
@@ -227,7 +229,10 @@ class ReplayThread(GameThread):
 				self.board.update_select(x, y, int(tokens[2]), tokens[len(tokens)-1])
 				if isinstance(graphics, GraphicsThread):
 					with graphics.lock:
-						graphics.state["moves"] = self.board.possible_moves(target)
+						if target.current_type != "unknown":
+							graphics.state["moves"] = self.board.possible_moves(target)
+						else:
+							graphics.state["moves"] = None
 					time.sleep(turn_delay)
 			else:
 				self.board.update_move(x, y, x2, y2)

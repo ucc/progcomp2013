@@ -1400,6 +1400,43 @@ class HttpReplay():
 			
 	def close(self):
 		self.getter.stop()
+
+class FileReplay():
+	def __init__(self, filename):
+		self.f = open(filename, "r", 0)
+		self.filename = filename
+		self.mod = os.path.getmtime(filename)
+		self.count = 0
+	
+	def readline(self):
+		line = self.f.readline()
+		
+		while line == "":
+			mod2 = os.path.getmtime(self.filename)
+			if mod2 > self.mod:
+				#sys.stderr.write("File changed!\n")
+				self.mod = mod2
+				self.f.close()
+				self.f = open(self.filename, "r", 0)
+				
+				new_line = self.f.readline()
+				
+				if " ".join(new_line.split(" ")[0:3]) != "# Short log":
+					for i in range(self.count):
+						new_line = self.f.readline()
+						#sys.stderr.write("Read back " + str(i) + ": " + str(new_line) + "\n")
+					new_line = self.f.readline()
+				else:
+					self.count = 0
+				
+				line = new_line
+
+		self.count += 1
+		return line
+
+	def close(self):
+		self.f.close()
+		
 						
 def log(s):
 	for l in log_files:
@@ -1593,6 +1630,8 @@ class ReplayThread(GameThread):
 			if self.stopped():
 				break
 			
+			if len(line) <= 0:
+				continue
 					
 
 			if line[0] == '#':
@@ -1640,7 +1679,10 @@ class ReplayThread(GameThread):
 				self.board.update_select(x, y, int(tokens[2]), tokens[len(tokens)-1])
 				if isinstance(graphics, GraphicsThread):
 					with graphics.lock:
-						graphics.state["moves"] = self.board.possible_moves(target)
+						if target.current_type != "unknown":
+							graphics.state["moves"] = self.board.possible_moves(target)
+						else:
+							graphics.state["moves"] = None
 					time.sleep(turn_delay)
 			else:
 				self.board.update_move(x, y, x2, y2)
@@ -1798,7 +1840,7 @@ class GraphicsThread(StoppableThread):
 		#print "Test font"
 		pygame.font.Font(os.path.join(os.path.curdir, "data", "DejaVuSans.ttf"), 32).render("Hello", True,(0,0,0))
 
-		#load_images()
+		#create_images(grid_sz)
 		create_images(grid_sz)
 
 		"""
@@ -2319,7 +2361,9 @@ def main(argv):
 		elif arg[1] == '-' and arg[2:] == "reveal":
 			always_reveal_states = True
 		elif (arg[1] == '-' and arg[2:] == "graphics"):
-			graphics_enabled = not graphics_enabled
+			graphics_enabled = True
+		elif (arg[1] == '-' and arg[2:] == "no-graphics"):
+			graphics_enabled = False
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "file"):
 			# Load game from file
 			if len(arg[2:].split("=")) == 1:
@@ -2329,7 +2373,7 @@ def main(argv):
 				if f[0:7] == "http://":
 					src_file = HttpReplay(f)
 				else:
-					src_file = open(f.split(":")[0], "r", 0)
+					src_file = FileReplay(f.split(":")[0])
 
 					if len(f.split(":")) == 2:
 						max_moves = int(f.split(":")[1])
@@ -2480,6 +2524,8 @@ def main(argv):
 	if src_file != None and src_file != sys.stdin:
 		src_file.close()
 
+	sys.stdout.write(game.final_result + "\n")
+
 	return error
 
 # This is how python does a main() function...
@@ -2500,4 +2546,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Thu Jan 31 13:37:15 WST 2013
+# EOF - created from make on Tue Feb 12 17:06:37 WST 2013
