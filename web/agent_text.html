@@ -1,0 +1,142 @@
+
+<html>
+
+<head>
+<title> UCC::Progcomp 2013 - Writing an Agent - Text based </title>
+</head>
+
+<body bgcolor=white>
+
+<h1> Text based API </h1>
+
+<p> Be sure to read and understand <a href="http://research.cs.queensu.ca/Parallel/QuantumChess/QuantumChess.html"/>the rules</a> before reading this page. </p>
+<p> </p>
+<p> All agents (even python ones) are stand alone programs which qchess spawns instances of to play a game. Qchess sends state updates and requests moves from players through pipes. From the agent's point of view, all it has to do is read commands from stdin and respond to stdout. </p>
+<p> <b>Note:</b> Although pipes are pretty damn awesome, they unfortunately always get buffered by default, with a stupidly large size like 4KB. This means that it is unlikely a program will work unless it is able to unbuffer its stdin/stdout streams. In some languages this is trivial. In others it is probably impossible. If you want to use a language where it is impossible, please tell the organiser. Even if I have to rewrite half of the code dealing with external agents, <i>I will make it work</i>. </p>
+
+<hr>
+
+<h2> Overview </h2>
+
+<p> In the following, lines prefixed with "<< " indicate input to the agent, lines prefixed with ">> " indicate output. </p>
+<p> The end line character is a unix new line character '\n'. There is no carriage return. </p>
+<p> A token prefixed with '$' is taken to be variable, whilst all other tokens are to be interpreted literally. </p>
+
+<hr>
+
+<h2> Game start </h2>
+
+<p> << $colour </p>
+<p> Where: </p>
+<ol> 
+	<li> $colour is either "white" or "black" and indicates the colour the agent will be playing as. </li>
+	<li> The agent should make <i>no response</i> to this message. If it does, it will be declared illegal. </li>
+</ol>
+
+<hr>
+
+<h2> Request: Selection </h2>
+
+<p> << SELECTION? </p>
+<p> >> $x $y </p>
+<p> << $x $y $index $type
+
+<p> Where: </p>
+<ol>
+	<li> $x and $y are the x and y co-ordinates of the piece that the agent wishes to select. </li>
+	<ol type="i"> <li> $x and $y must be the co-ordinates of a square that is on the board, and occupied by a piece belonging to the agent. </li>
+	     <ol type="a"> <li> The top left square is (x,y) = (0,0). The bottom right is at (x,y) = (7,7). </li>
+		  <li> Qchess does <b>not</b> recognise standard chess square names (eg: E5) </li>
+	      	  <li> A piece belongs to the agent if its colour matches that of the agent. </li> </ol>
+	</ol>
+	<li> An invalid selection results in the game ending with the offending agent declared illegal </li>
+	<li> A valid selection results in a response from qchess; see <b> Update: Agent selects a piece </b> </li>
+	</ol>
+</ol>
+	
+<hr>
+
+<h2> Request: Movement </h2>
+
+<p> << MOVE? </p>
+<p> >> $x $y </p>
+
+<p> If an agent selects a piece that cannot move, it will not receive this request before its next selection. </p>
+
+<p> Where: </p>
+
+<ol>
+	<li> If an agent selected a piece that couldn't move, it will not receive this request before another selection request </li>
+	<li> $x and $y are the co-ordinates of the destination square </li>
+	<ol type="i">
+		<li> The selected piece must be able to move into the square, and the square must be unoccupied or occupied by a piece of the opposing colour </li>
+		<li> If the square was occupied by a piece of the opposing colour, that piece is "taken" and removed from the game </li>
+		<li> If the "taken" piece was the opposing king, the agent will win the game. </li>
+		<li> The agent must always make a move </li>
+	</ol>
+	<li> An invalid move results in the game ending with the offending agent declared illegal. </li>
+	<li> A valid selection results in a response from qchess; see <b> Update: Agent moves a piece </b> </li>
+</ol>
+		
+
+<hr>
+
+<h2> Update: Agent selects a piece </h2>
+
+<p> << $x $y $index $type </p>
+
+<p> Where: </p>
+<ol> 
+     <li> $x and $y are the x and y co-ordinates of the selected piece </li>
+     <li> $index is either "0" or "1" and indicates which of its two states the selected piece is in. </li>
+     <li> $type is a string indicating what the state of the piece actually is. </li>
+     <ol type="a"> <li> This string is one of: "king", "queen", "rook", "knight", "bishop" or "pawn". </li>
+	           <li> The piece's next move will obey traditional chess movement rules for a piece of this type. </li> </ol>
+     <li> The agent should <b> not </b> respond to this message, or it will be declared illegal
+</ol>
+
+<hr>
+
+<h2> Update: Agent moves a piece </h2>
+
+<p> << $x1 $y1 -> $x2 $y2 </p>
+
+<p> Where: </p>
+<ol>
+	<li> The piece will have been been selected immediately prior to being moved. </li>
+	<li> $x1 and $y1 are the x and y co-ordinates of the piece's original square. </li>
+	<li> $x2 and $y2 are the x and y co-ordinates of the piece's destination square. </li>
+	<li> Qchess does <b> not </b> provide any indication as to whether the move captured a piece or not </li>
+</ol>
+
+
+<hr>
+
+<h2> Game ends </h2>
+
+<p> << QUIT </p>
+
+<p> Where: </p>
+
+<ol>
+	<li> The agent should immediately exit cleanly without sending any response. </li>
+	<li> Agents which do not exit after 2 seconds shall be sent SIGKILL </li>
+</ol>
+
+<hr>
+
+<h2> Notes: </h2>
+<ol>
+	<li> The "update" messages give no indication as to which player performed the selection or movement. However this is trivial for agents to keep track of. </li>
+	<li> Agents can expect to receive an "update" message after responding successfully to the corresponding "request" </li>
+	<li> If no request was made, the agent can assume the "update" is due to the action of the opponent. </li>
+</ol>
+<hr>
+<p> Page last updated 2013-02-18 by matches </p>
+
+<p> <a href="http://www.ucc.asn.au">The UCC Website</a> </p>
+<p> <a href="http://progcomp.ucc.asn.au/2013/web">UCC::Progcomp 2013</a> </p>
+
+</body>
+
+</html>

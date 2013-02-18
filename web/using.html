@@ -1,0 +1,108 @@
+
+<html>
+
+<head>
+<title> UCC::Progcomp 2013 - Using qchess </title>
+</head>
+
+<body bgcolor=white>
+
+Assuming you have <a href="get.html"/>obtained qchess</a>, here is how to use it.
+
+<h1> GUI - Playing a game </h1>
+
+<p> You'll probably want to play against sample agents to learn the game. Or you'll want to play against your own agent to test it. </p>
+
+<ol>
+	<li> <b> Start qchess </b> </li>
+	<ul> <li> Open a terminal </li>
+	     <li> Navigate to the directory where you downloaded qchess </li>
+	     <li> Run `./qchess.py' </li>
+	     <li> You should see a chess board with "Choose white player" and some rather stylish buttons. </li> </ul>
+	<li> <b> Choose players </b> </li>
+	<ul> <li> A "human" player plays using the mouse. That's you. </li>
+	     <li> If you click "agent", you can choose between "internal" or "external" </li>
+	     <ul> <li> "internal" gives you a choice between the sample agents that come with qchess </li>
+	          <li> "external" lets you browse select an executable file as an agent. Use this to choose your own agent. </li>
+		  <li> If there is an error, qchess usually restarts the selection process. Usually. </li> </ul>
+	     <li> In theory, "network" lets you connect to a player (human or agent) running remotely via another qchess program </li>
+	     <ul> <li> Best to leave this button alone. It probably works, but it won't be that useful. </li> </ul>
+	     <li> You can have any combination of types for the two players. So you can play against your friends.</li> </ul>
+	<li> <b> Play / Watch game </b> </li>
+	<ul> <li> For a human player, a border around the square under the mouse indicates it is that player's turn </li>
+	     <li> You can't undo selections, because selecting a piece can affect its state. Quantum Chess is "touch move". </li>
+	     <li> Be careful not to select a piece that cannot move. You will lose a turn. Even if you don't affect its state, and even if you didn't know for sure that it couldn't move. </li>
+	     <li> Click on pieces to select them. Selected piece and possible moves are highlighted. Click again to move. </li>
+	     <li> Right click on a piece to overlay the squares it may move into with probabilities </li>
+	     <li> Middle click on any square to overlay all pieces which could reach the square if it were occupied. </li>
+	     <li> You can quit with the close window button </li> </ul>
+</ol>
+
+<h1> Advanced stuff - command line options </h1>
+
+<p> On unix systems, running `./qchess.py --help' should show you a help file. </p>
+<p> On windows (or on unix) you can also find the help file in data/help.txt </p>
+<p> Or you can click <a href="../qchess/data/help.txt"/>here</a> </p>
+
+<p> I'll explain some options here anyway, because no one reads help files. Also it might not be up to date.</p>
+
+<ul>
+	<li> Any argument that doesn't start with '--' is treated as the white or black player, in the order these arguments appear </li>
+	<ul> <li> If the player name starts with '@', it is a special player. "@human" is a human player; "@internal:AgentName" is an internal agent, and "@network:server_address" is a network player. </li>
+	     <li> Any player name that doesn't start with '@' is considered an executable file which will play qchess as an external agent. </li> </ul>
+	<li> You can save moves to a log file with the --log=filename option. Don't supply a filename to log to stdout. </li>
+	<ul> <li> You can save the state of the board and last two events by adding a '@' before the filename. The file is re-written every two events. </li>
+	     <li> Normally the log file contains all moves; the "state file" contains the state of the board and at most 2 events after that. </li> 
+	     <li> You can specify multiple log files. </li> </ul>
+	<li> You can replay moves from a log file with --file=logfile </li>
+	<ul> 
+	     <li> This works regardless of whether the log file contains all moves or just the last state </li>
+	     <li> If the file is still being logged to, the replay waits for moves to be logged </li>
+	     <li> If you supply two players for the game, those two players will resume play at the end of the replay </li>
+	     <li> Otherwise the program will wait for you to exit at the end of the replay. </li> 
+	     <li> You can log to a file and replay from a log file simultaneously </ul>
+
+	<li> During the actual competition, you can watch games live with --file=http://progcomp.ucc.asn.au/2013/web/current0.log </li>
+	<ul> <li> I will advertise exactly what url to use </li> </ul>
+	<li> You can set the time limit on agent (not human) moves with the --timeout=time option </li>
+	<li> qchess sleeps a bit after each action so that you can see what agents are doing. You can change this interval with --delay=interval </li> </ul>
+
+<h2> Output of qchess </h2>
+
+<p> If you want to be clever and do something like evolutionary code, you'll need to play lots of games and do stuff based on the output. </p>
+
+<p> qchess outputs lines of the form: `colour [result]' </p>
+<ul>
+	<li> colour indicates which player's turn the game ended on. So it is "white" or "black". </li>
+	<li> result is only present if the game didn't end in a normal victory. </li>
+	<ul> <li> A result of "DRAW" indicates a draw. It's in all caps because draws are exciting. </li>
+	     <li> A result of "terminated" indicates the game was manually quit by a human being. </li>
+	     <li> A result of "ILLEGAL" followed by either "white" or "black" indicates that that player (an agent) did something illegal. </li>
+	     
+	     <ul> <li> The rest of the output indicates exactly what the player did </li>
+		  <li> Illegal things include: </li>
+	          <ul> <li> "timeout" didn't make a move before a timeout </li> 
+		       <li> "not_your_piece" selected wrong colour piece </li>
+		       <li> "empty_square" selected empty square </li>
+		       <li> "illegal_move" the selected piece can't move the way that the player tried to move it </li>
+		       <li> "gibberish" sent a response that made no sense </li>
+		       <li> "unresponsive" an agent didn't respond; we assume it crashed (and kill it with SIGKILL just in case). </li>
+		  <li> A human player should (we hope) not be able to cause the "ILLEGAL" output </li> </ul> </ul> </ul>
+</ul>
+
+<hr>
+<p> The actual competition "simulator" is a bash script that runs lots of qchess instances and creates scores for each agent based on the outputs. </p>
+
+
+<hr>
+
+<p> Page last updated 2013-02-18 by matches </p>
+
+<p> <a href="http://www.ucc.asn.au">The UCC Website</a> </p>
+<p> <a href="http://progcomp.ucc.asn.au/2013/web">UCC::Progcomp 2013</a> </p>
+
+
+
+</body>
+
+</html>
