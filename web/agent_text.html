@@ -18,7 +18,7 @@
 
 <h2> Overview </h2>
 
-<p> In the following, lines prefixed with "<< " indicate input to the agent, lines prefixed with ">> " indicate output. </p>
+<p> In the following, lines prefixed with "&lt;&lt; " indicate input to the agent, lines prefixed with "&gt;&gt; " indicate output. </p>
 <p> The end line character is a unix new line character '\n'. There is no carriage return. </p>
 <p> A token prefixed with '$' is taken to be variable, whilst all other tokens are to be interpreted literally. </p>
 
@@ -26,7 +26,7 @@
 
 <h2> Game start </h2>
 
-<p> << $colour </p>
+<p> &lt;&lt; $colour </p>
 <p> Where: </p>
 <ol> 
 	<li> $colour is either "white" or "black" and indicates the colour the agent will be playing as. </li>
@@ -37,9 +37,9 @@
 
 <h2> Request: Selection </h2>
 
-<p> << SELECTION? </p>
-<p> >> $x $y </p>
-<p> << $x $y $index $type
+<p> &lt;&lt; SELECTION? </p>
+<p> &gt;&gt; $x $y </p>
+<p> &gt;&gt; $x $y $index $type
 
 <p> Where: </p>
 <ol>
@@ -58,8 +58,8 @@
 
 <h2> Request: Movement </h2>
 
-<p> << MOVE? </p>
-<p> >> $x $y </p>
+<p> &lt;&lt; MOVE? </p>
+<p> &gt;&gt; $x $y </p>
 
 <p> If an agent selects a piece that cannot move, it will not receive this request before its next selection. </p>
 
@@ -83,7 +83,7 @@
 
 <h2> Update: Agent selects a piece </h2>
 
-<p> << $x $y $index $type </p>
+<p> &lt;&lt; $x $y $index $type </p>
 
 <p> Where: </p>
 <ol> 
@@ -99,7 +99,7 @@
 
 <h2> Update: Agent moves a piece </h2>
 
-<p> << $x1 $y1 -> $x2 $y2 </p>
+<p> &lt;&lt; $x1 $y1 -&gt; $x2 $y2 </p>
 
 <p> Where: </p>
 <ol>
@@ -109,12 +109,14 @@
 	<li> Qchess does <b> not </b> provide any indication as to whether the move captured a piece or not </li>
 </ol>
 
+<p> <b> Note: </b> The token between the two pairs of co-ordinates is a minus sign followed by a greater than sign. It's supposed to look like an arrow, but in html it's a bit hard to see. </p>
+
 
 <hr>
 
 <h2> Game ends </h2>
 
-<p> << QUIT </p>
+<p> &lt;&lt; QUIT </p>
 
 <p> Where: </p>
 
@@ -132,7 +134,7 @@
 	<li> If no request was made, the agent can assume the "update" is due to the action of the opponent. </li>
 </ol>
 <hr>
-<p> Page last updated 2013-02-18 by matches </p>
+<p> Page last updated 2013-02-19 by matches </p>
 
 <p> <a href="http://www.ucc.asn.au">The UCC Website</a> </p>
 <p> <a href="http://progcomp.ucc.asn.au/2013/web">UCC::Progcomp 2013</a> </p>
