@@ -75,7 +75,7 @@ class Piece():
 	
 	# Collapses the wave function!		
 	def select(self):
-		if self.current_type == "unknown":
+		if self.current_type == "unknown" or not self.choice in [0,1]:
 			self.choice = random.randint(0,1)
 			if self.types[self.choice][0] == '?':
 				self.types[self.choice] = self.types[self.choice][1:]

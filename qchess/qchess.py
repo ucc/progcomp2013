@@ -76,7 +76,7 @@ class Piece():
 	
 	# Collapses the wave function!		
 	def select(self):
-		if self.current_type == "unknown":
+		if self.current_type == "unknown" or not self.choice in [0,1]:
 			self.choice = random.randint(0,1)
 			if self.types[self.choice][0] == '?':
 				self.types[self.choice] = self.types[self.choice][1:]
@@ -2546,4 +2546,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Tue Feb 12 17:06:37 WST 2013
+# EOF - created from make on Mon Feb 25 21:46:16 WST 2013
