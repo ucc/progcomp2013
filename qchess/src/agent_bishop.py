@@ -47,10 +47,9 @@ class AgentBishop(AgentRandom): # Inherits from AgentRandom (in qchess)
 				
 				
 				# Get total probability that the move is protected
-				[xx,yy] = [piece.x, piece.y]
-				[piece.x, piece.y] = [x, y]
-				self.board.grid[x][y] = piece
-				self.board.grid[xx][yy] = None
+				self.board.push_move(piece, x, y)
+				
+
 				
 				defenders = self.board.coverage(x, y, piece.colour, reject_allied = False)
 				d_prob = 0.0
@@ -73,9 +72,8 @@ class AgentBishop(AgentRandom): # Inherits from AgentRandom (in qchess)
 				if (a_prob > 1.0):
 					a_prob = 1.0
 
-				self.board.grid[x][y] = target
-				self.board.grid[xx][yy] = piece
-				[piece.x, piece.y] = [xx, yy]
+				self.board.pop_move()
+				
 
 				
 				# Score of the move

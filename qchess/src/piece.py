@@ -19,7 +19,7 @@ class Piece():
 		
 		self.move_pattern = None
 		self.coverage = None
-
+		self.possible_moves = None
 		
 
 	def init_from_copy(self, c):

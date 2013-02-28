@@ -3,7 +3,40 @@
 
 <head>
 <title> UCC::Progcomp 2013 - Writing an Agent - python </title>
+
+<style>
+div.python > ul
+{
+    list-style-type: none;
+}
+
+.python .de1, .python .de2 {-moz-user-select: text;-khtml-user-select: text;-webkit-user-select: text;-ms-user-select: text;user-select: text;
+margin:0; padding: 0 5px; background:none; vertical-align:top;color:#000;border-left: 1px solid #ccc; margin: 0 0 0 -7px; position: relative; background: #ffffff;}
+.python  {color:#ACACAC;}
+.python .imp {font-weight: bold; color: red;}
+.python li, .python .li1 {-moz-user-select: -moz-none;-khtml-user-select: none;-webkit-user-select: none;-ms-user-select: none;user-select: none;
+}
+.python .ln {width:1px;text-align:right;margin:0;padding:0 2px;vertical-align:top;}
+.python .kw1 {color: #ff7700;font-weight:bold;}
+.python .kw2 {color: #008000;}
+.python .kw3 {color: #dc143c;}
+.python .kw4 {color: #0000cd;}
+.python .co1 {color: #808080; font-style: italic;}
+.python .coMULTI {color: #808080; font-style: italic;}
+.python .es0 {color: #000099; font-weight: bold;}
+.python .br0 {color: black;}
+.python .sy0 {color: #66cc66;}
+.python .st0 {color: #483d8b;}
+.python .nu0 {color: #ff4500;}
+.python .me1 {color: black;}
+.python .ln-xtra, .python li.ln-xtra, .python div.ln-xtra {color:black;background:#FFFF88;}
+.python span.xtra { display:block; }
+
+</style>
+
 </head>
+
+
 
 <body bgcolor=white>
 
@@ -17,11 +50,103 @@
 
 <h2> Overview </h2>
 
+<ol>
+	<li> Start the script with <code>from qchess import *</code> </li>
+	<li> Write a class <code>Agent</code> that inherits from <code>InternalAgent</code> </li>
+	<li> Make sure <code>Agent.__init__(self, name, colour)</code> calls <code>InternalAgent.__init__(self, name, colour)</code> </li>
+	<li> Implement <code>Agent.select(self)</code>, which must return <code>[x,y]</code> </li>
+	<ul>
+		<li> Where <code>x</code> and <code>y</code> are the x and y coordinates of the piece you want to select </li>
+		<li> <code>x</code> and <code>y</code> must be between <code>0</code> and <code>7</code> </li>
+	</ul>
+	<li> Implement <code>Agent.get_move(self)</code>, which must return <code>[x,y]</code> </li>
+	<ul>
+		<li> Where <code>x</code> and <code>y</code> are the x and y coordinates of the square you wish to move the previously selected piece into. </li>
+		<li> <code>x</code> and <code>y</code> must be between <code>0</code> and <code>7</code> </li>
+	</ul>
+	<li> Read the colour of the agent from stdin, then construct an <code>agent = Agent(colour)</code>, and call <code>run_agent(agent)</code>
+
+</ol>
+
+<hr>
+
+<h2> Skeleton </h2>
+
+<code><div class="python"><ul><li class="li1"><div class="de1"><span class="co1">#!/usr/bin/python</span></div></li>
+<li class="li2"><div class="de2"><span class="kw1">from</span> qchess <span class="kw1">import</span> *</div></li>
+<li class="li1"><div class="de1"><span class="kw1">class</span> Agent<span class="br0">&#40;</span>InternalAgent<span class="br0">&#41;</span>:</div></li>
+<li class="li2"><div class="de2">&nbsp; &nbsp; &nbsp; &nbsp; <span class="kw1">def</span> <span class="kw4">__init__</span><span class="br0">&#40;</span><span class="kw2">self</span><span class="sy0">,</span> name<span class="sy0">,</span> colour<span class="br0">&#41;</span>:</div></li>
+<li class="li1"><div class="de1">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; InternalAgent.<span class="kw4">__init__</span><span class="br0">&#40;</span><span class="kw2">self</span><span class="sy0">,</span> name<span class="sy0">,</span> colour<span class="br0">&#41;</span></div></li>
+<li class="li2"><div class="de2">&nbsp; &nbsp; &nbsp; &nbsp; </div></li>
+<li class="li1"><div class="de1">&nbsp; &nbsp; &nbsp; &nbsp; <span class="kw1">def</span> <span class="kw3">select</span><span class="br0">&#40;</span><span class="kw2">self</span><span class="br0">&#41;</span>:</div></li>
+<li class="li2"><div class="de2">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span class="co1">#TODO: Implement me!</span></div></li>
+<li class="li1"><div class="de1">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span class="kw2">self</span>.<span class="me1">choice</span> <span class="sy0">=</span> <span class="co1">#a piece that you want to move</span></div></li>
+<li class="li1"><div class="de1">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span class="kw1">return</span> <span class="br0">&#91;</span><span class="kw2">self</span>.choice.x<span class="sy0">,</span><span class="kw2">self</span>.choice.y<span class="br0">&#93;</span></div></li>
+<li class="li2"><div class="de2">&nbsp;</div></li>
+<li class="li1"><div class="de1">&nbsp; &nbsp; &nbsp; &nbsp; <span class="kw1">def</span> get_move<span class="br0">&#40;</span><span class="kw2">self</span><span class="br0">&#41;</span>:</div></li>
+<li class="li2"><div class="de2">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span class="co1">#TODO: Implement me!</span></div></li>
+<li class="li2"><div class="de2">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span class="co1">#      (ie: Find a move for self.choice)</span></div></li>
+<li class="li1"><div class="de1">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span class="kw1">return</span> <span class="br0">&#91;</span>x<span class="sy0">,</span>y<span class="br0">&#93;</span></div></li>
+<li class="li2"><div class="de2">&nbsp; &nbsp; &nbsp; &nbsp; </div></li>
+<li class="li2"><div class="de2">&nbsp; &nbsp; &nbsp; &nbsp; </div></li>
+<li class="li1"><div class="de1"><span class="kw1">if</span> __name__ <span class="sy0">==</span> <span class="st0">&quot;__main__&quot;</span>:</div></li>
+<li class="li2"><div class="de2">&nbsp; &nbsp; &nbsp; &nbsp; colour <span class="sy0">=</span> <span class="kw3">sys</span>.<span class="me1">stdin</span>.<span class="kw3">readline</span><span class="br0">&#40;</span><span class="br0">&#41;</span>.<span class="me1">strip</span><span class="br0">&#40;</span><span class="st0">&quot; <span class="es0">\r</span><span class="es0">\n</span>&quot;</span><span class="br0">&#41;</span></div></li>
+<li class="li1"><div class="de1">&nbsp; &nbsp; &nbsp; &nbsp; agent <span class="sy0">=</span> Agent<span class="br0">&#40;</span>colour<span class="br0">&#41;</span></div></li>
+<li class="li2"><div class="de2">&nbsp; &nbsp; &nbsp; &nbsp; run_agent<span class="br0">&#40;</span>agent<span class="br0">&#41;</span></div></li>
+</ul></div></code>
 
 
 <hr>
 
-<p> Page last updated 2013-02-18 by matches </p>
+<h2> Useful things from <code>qchess.py</code> </h2>
+
+<p> You can implement your own Quantum Chess pieces and board classes if you really want. However, there are already some in <a href="../qchess/qchess.py"/>qchess.py</a> </p>
+<p> Don't worry, you don't have to read that file, because I will describe the things that it is safe to use right here! </p>
+
+<p> I'm going to dispense with the html for a bit, because I'm sick of having to type &lt;li&gt; every line. </p>
+
+<pre> <code>
+
+InternalAgent - What you should inherit your Agent from if you want it to work
+	colour - string representing colour of the agent
+	board - instance of the Board class. This is automatically updated if you use run_agent
+	choice - you should set this to the Piece that you select in Agent.select()
+
+Piece - Class to represent a Quantum Chess piece
+	colour - string representing colour of the piece
+	types[2] - list containing the two types that the piece can be, as strings
+	choice - integer; either -1 (superposition), 0, or 1 to indicate what type the piece is
+	current_type - string representing the current piece's type; "unknown" for a superposition
+
+Board - Class to represent a quantum chess board. InternalAgent.board is one of these.
+	possible_moves(self, piece, state = None) - Return a list of possible moves for piece. 
+						  - If state is None, the piece must be in a known classical state
+						  - If state is not None, the state of the piece will be temporarily set
+	push_move(self, piece, x, y) - *Temporarily* move piece to position [x,y]. If the square is occupied, the piece that was there is temporarily removed.
+				      - Does not perform any legality checks on the move
+	pop_move(self) - Restore the state of the Board to whatever it was before the most recent call to Board.push_move()
+	coverage(self, x, y, colour = None, reject_allied = True) - Returns a dictionary that maps pieces which could move to [x,y] to the probability they could move to [x,y]
+								   - Colour can be set to only include pieces of a certain colour
+								   - If reject_allied is True, pieces cannot move into squares occupied by pieces of the same colour
+								   - If reject_allied is False, pieces are treated as being able to move into friendly squares
+	prob_is_type(self, piece, state) - Return probability that Piece p is in a state
+	probability_grid(self, piece, reject_allied = True) - Return probability that piece can move into [x,y] for each [x,y] on the board. reject_allied is as in Board.coverage()
+	opponent(colour) - return "white" iff colour == "black", else return "black"
+
+</code> </pre>
+
+<h2> Examples </h2>
+
+<p> Probably the best way to learn how to use these functions is to read the source for <a href="../qchess/src/agent_bishop.py"/>Agent Bishop</a> </p>
+
+
+<hr>
+
+<p> Page last updated 2013-02-28 by matches and rvvs89 </p>
+<p> <b> Thanks </b> to rvvs89 for prettifying things! </p>
+<p> Also thanks to <a href="http://pastebin.com">pastebin.com</a> </p>
+
+<hr>
 
 <p> <a href="http://www.ucc.asn.au">The UCC Website</a> </p>
 <p> <a href="http://progcomp.ucc.asn.au/2013/web">UCC::Progcomp 2013</a> </p>

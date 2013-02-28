@@ -20,7 +20,7 @@ class Piece():
 		
 		self.move_pattern = None
 		self.coverage = None
-
+		self.possible_moves = None
 		
 
 	def init_from_copy(self, c):
@@ -112,6 +112,7 @@ class Board():
 		self.king = {"white" : None, "black" : None} # We need to keep track of the king, because he is important
 		self.max_moves = None
 		self.moves = 0
+		self.move_stack = []
 		for c in ["black", "white"]:
 			del self.unrevealed_types[c]["unknown"]
 
@@ -282,10 +283,19 @@ class Board():
 
 		if len(self.possible_moves(piece)) <= 0:
 			piece.deselect() # Piece can't move; deselect it
+			
+		# Piece needs to recalculate moves
+		piece.possible_moves = None
 		
 	# Update the board when a piece has been moved
 	def update_move(self, x, y, x2, y2):
+				
 		piece = self.grid[x][y]
+		#print "Moving " + str(x) + "," + str(y) + " to " + str(x2) + "," + str(y2) + "; possible_moves are " + str(self.possible_moves(piece))
+		
+		if not [x2,y2] in self.possible_moves(piece):
+			raise Exception("ILLEGAL move")
+		
 		self.grid[x][y] = None
 		taken = self.grid[x2][y2]
 		if taken != None:
@@ -309,6 +319,11 @@ class Board():
 
 		piece.deselect() # Uncollapse (?) the wavefunction!
 		self.moves += 1
+		
+		# All other pieces need to recalculate moves
+		for p in self.pieces["white"] + self.pieces["black"]:
+			p.possible_moves = None
+		
 		#self.verify()	
 
 	# Update the board from a string
@@ -366,7 +381,7 @@ class Board():
 			if prob > 0:
 				result.update({p : prob})
 		
-		self.verify()
+		#self.verify()
 		return result
 
 
@@ -407,7 +422,7 @@ class Board():
 				for point in self.possible_moves(p, reject_allied):
 					result[point[0]][point[1]] += prob
 		
-		self.verify()
+		#self.verify()
 		p.current_type = "unknown"
 		return result
 
@@ -433,10 +448,25 @@ class Board():
 	# This is probably inefficient, but I looked at some sample chess games and they seem to actually do things this way
 	# reject_allied indicates whether squares occupied by allied pieces will be removed
 	# (set to false to check for defense)
-	def possible_moves(self, p, reject_allied = True):
-		result = []
+	def possible_moves(self, p, reject_allied = True, state=None):
 		if p == None:
+			raise Exception("SANITY: No piece")
+		
+		
+		
+		if state != None and state != p.current_type:
+			old_type = p.current_type
+			p.current_type = state
+			result = self.possible_moves(p, reject_allied, state=None)
+			p.current_type = old_type
 			return result
+		
+		if p.possible_moves != None:
+			return p.possible_moves
+		
+		
+		result = []
+		
 
 		
 		if p.current_type == "unknown":
@@ -508,7 +538,9 @@ class Board():
 			if g != None and (g.colour == p.colour and reject_allied == True):
 				result.remove(point) # Remove allied pieces
 		
-		self.verify()
+		#self.verify()
+		
+		p.possible_moves = result
 		return result
 
 
@@ -550,6 +582,34 @@ class Board():
 	# I typed the full statement about 30 times before writing this function...
 	def on_board(self, x, y):
 		return (x >= 0 and x < w) and (y >= 0 and y < h)
+	
+	# Pushes a move temporarily
+	def push_move(self, piece, x, y):
+		target = self.grid[x][y]
+		self.move_stack.append([piece, target, piece.x, piece.y, x, y])
+		[piece.x, piece.y] = [x, y]
+		self.grid[x][y] = piece
+		self.grid[piece.x][piece.y] = None
+		
+		for p in self.pieces["white"] + self.pieces["black"]:
+			p.possible_moves = None
+		
+	# Restore move
+	def pop_move(self):
+		#print str(self.move_stack)
+		[piece, target, x1, y1, x2, y2] = self.move_stack[len(self.move_stack)-1]
+		self.move_stack = self.move_stack[:-1]
+		piece.x = x1
+		piece.y = y1
+		self.grid[x1][y1] = piece
+		if target != None:
+			target.x = x2
+			target.y = y2
+		self.grid[x2][y2] = target
+		
+		for p in self.pieces["white"] + self.pieces["black"]:
+				p.possible_moves = None
+		
 # --- board.py --- #
 import subprocess
 import select
@@ -856,10 +916,9 @@ class AgentBishop(AgentRandom): # Inherits from AgentRandom (in qchess)
 				
 				
 				# Get total probability that the move is protected
-				[xx,yy] = [piece.x, piece.y]
-				[piece.x, piece.y] = [x, y]
-				self.board.grid[x][y] = piece
-				self.board.grid[xx][yy] = None
+				self.board.push_move(piece, x, y)
+				
+
 				
 				defenders = self.board.coverage(x, y, piece.colour, reject_allied = False)
 				d_prob = 0.0
@@ -882,9 +941,8 @@ class AgentBishop(AgentRandom): # Inherits from AgentRandom (in qchess)
 				if (a_prob > 1.0):
 					a_prob = 1.0
 
-				self.board.grid[x][y] = target
-				self.board.grid[xx][yy] = piece
-				[piece.x, piece.y] = [xx, yy]
+				self.board.pop_move()
+				
 
 				
 				# Score of the move
@@ -1840,7 +1898,7 @@ class GraphicsThread(StoppableThread):
 		#print "Test font"
 		pygame.font.Font(os.path.join(os.path.curdir, "data", "DejaVuSans.ttf"), 32).render("Hello", True,(0,0,0))
 
-		#create_images(grid_sz)
+		#load_images()
 		create_images(grid_sz)
 
 		"""
@@ -2546,4 +2604,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Mon Feb 25 21:46:16 WST 2013
+# EOF - created from make on Thu Feb 28 18:12:37 WST 2013
