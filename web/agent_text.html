@@ -12,7 +12,6 @@
 <p> Be sure to read and understand <a href="http://research.cs.queensu.ca/Parallel/QuantumChess/QuantumChess.html"/>the rules</a> before reading this page. </p>
 <p> </p>
 <p> All agents (even python ones) are stand alone programs which qchess spawns instances of to play a game. Qchess sends state updates and requests moves from players through pipes. From the agent's point of view, all it has to do is read commands from stdin and respond to stdout. </p>
-<p> <b>Note:</b> Although pipes are pretty damn awesome, they unfortunately always get buffered by default, with a stupidly large size like 4KB. This means that it is unlikely a program will work unless it is able to unbuffer its stdin/stdout streams. In some languages this is trivial. In others it is probably impossible. If you want to use a language where it is impossible, please tell the organiser. Even if I have to rewrite half of the code dealing with external agents, <i>I will make it work</i>. </p>
 
 <hr>
 

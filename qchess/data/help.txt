@@ -60,9 +60,13 @@ OPTIONS
 		Print this page
 	
 	--graphics
-		Disable/Enable the GUI
+		Enable the GUI
 
 		If graphics are enabled (default), then the user will be prompted to choose any of the two players not supplied as arguments.
+
+	--no-graphics
+		Disable the GUI
+		
 		
 	--reveal
 		If graphics are enabled, the two states for pieces will always be shown, regardless of whether both states have been revealed.
@@ -84,6 +88,8 @@ OPTIONS
 
 	--log[=filename]
 		Log moves to a file or stdout if no filename given
+
+		
 
 	--delay[=time]
 		The game pauses between moves so that it can be followed by a human observer.

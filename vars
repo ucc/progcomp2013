@@ -3,7 +3,7 @@ results_dir="web/results"
 agent_dir="agents"
 qchess="qchess/qchess.py"
 webserver=$(hostname) # Where log files need to be copied
-swarm_hosts=""
+swarm_hosts="local"
 
 games_per_pair=1
 win_score=3

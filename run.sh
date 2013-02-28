@@ -6,7 +6,17 @@
 
 agents=""
 
-
+function sanity_swarm
+{
+	# Ideally swarm shouldn't crash
+	# But I'm a shit programmer
+	# So I'll leave this in
+	kill -0 $1 2>&1 >> /dev/null
+	if [ "$?" != "0" ]; then
+		echo "Swarm $pid is no longer running! $2" 1>&2
+		exit 1
+	fi
+}
 
 # Copy messages to a log file
 if [ "$BASH_ARGV" != "_worker_" ]; then
@@ -27,19 +37,28 @@ fi
 
 echo "Start at $(date)"
 
-# Setup the swarm
+cd $root_dir
+# Setup the swarmF
 if [ "$swarm_hosts" != "" ]; then
-	swarm --daemon
+	swarm_pid=$(swarm --daemon -l daemon.log:100)
+	if [ "$?" != "0" ]; then
+		echo "Couldn't start swarm daemon!" 1>&2
+		exit 1
+	fi
+	
 	for h in $swarm_hosts; do
-		swarm -c "#ABSORB $h#"
+		if [ "$h" != "local" ]; then
+			swarm -c "#ABSORB $h#"
+		fi
 	done
-	swarm -c "#.*# cd $root_dir; mkdir -p $results_dir/round$round"
+	sanity_swarm $swarm_pid
+	swarm -c "#.*# cd $root_dir; mkdir -p $results_dir/round$round" -l +wrapper.log:100
 fi
 
 
 
-cd $root_dir/$agent_dir
 count=0
+cd $root_dir/$agent_dir
 for f in $(ls); do
 	if [ -d $f ]; then
 		info_file=$(ls $f | grep -w "info")
@@ -67,6 +86,8 @@ fi
 echo "Start round $round"
 
 game=0
+
+get_number="echo \$name | tr ':' ' ' | awk '{print \$2}'"
 for a in $agents; do
 	runa="$agent_dir/$a/$(head --lines=1 $agent_dir/$a/info)"
 	for b in $agents; do
@@ -81,7 +102,9 @@ for a in $agents; do
 
 			echo "Game #$game: $a .vs. $b ($i of $games_per_pair)"
 			if [ "$swarm_hosts" != "" ]; then
-				swarm -c "$qchess --no-graphics \"$runa\" \"$runb\" --log=$l --log=@web/current.log 2>$err" -o $f.result
+				sanity_swarm $swarm_pid
+				swarm -c "#OUTPUT $f.result#"
+				swarm -c "$qchess --no-graphics \"$runa\" \"$runb\" --log=$l --log=@web/current\$($get_number).log 2>$err" -l +wrapper.log:100
 			else
 				$qchess --no-graphics "$runa" "$runb" --log=$l --log=@web/current.log 1> $f.result 2> $err
 				if [ "$(wc -l $err | awk '{print $1}')" == "0" ]; then rm $err; fi
@@ -93,6 +116,8 @@ done
 
 
 if [ "$swarm_hosts" != "" ]; then
+	echo "Waiting for games to finish"
+	sanity_swarm $swarm_pid
 	swarm -c "#BARRIER BLOCK#" # Wait for all games to finish
 
 	#Copy over log files (start before updating scores as the scp may take some time)
@@ -106,7 +131,8 @@ if [ "$swarm_hosts" != "" ]; then
 				fi
 			done
 		fi"
-		swarm -c "#$h:.* \$# $cmd" # Execute once on each host
+		sanity_swarm $swarm_pid
+		swarm -c "#$h:.* &# $cmd" # Execute once on each host
 	done
 fi
 

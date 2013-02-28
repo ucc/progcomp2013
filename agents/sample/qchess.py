@@ -1,1 +1,0 @@
-../../qchess/qchess.py

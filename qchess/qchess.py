@@ -1898,7 +1898,7 @@ class GraphicsThread(StoppableThread):
 		#print "Test font"
 		pygame.font.Font(os.path.join(os.path.curdir, "data", "DejaVuSans.ttf"), 32).render("Hello", True,(0,0,0))
 
-		#load_images()
+		#create_images(grid_sz)
 		create_images(grid_sz)
 
 		"""
@@ -2604,4 +2604,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Thu Feb 28 18:12:37 WST 2013
+# EOF - created from make on Thu Feb 28 23:49:16 WST 2013

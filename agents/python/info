@@ -1,0 +1,4 @@
+sample.py --no-debug
+Sam Moore
+python
+Sample agent; makes random moves. Basically a copy of the internal agent that makes random moves. With comments.
