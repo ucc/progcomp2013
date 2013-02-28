@@ -119,6 +119,8 @@ Piece - Class to represent a Quantum Chess piece
 	current_type - string representing the current piece's type; "unknown" for a superposition
 
 Board - Class to represent a quantum chess board. InternalAgent.board is one of these.
+	pieces[] - Dictionary that maps a colour string ("white" or "black") to a list of Piece's
+		 - ie: Use to get your pieces
 	possible_moves(self, piece, state = None) - Return a list of possible moves for piece. 
 						  - If state is None, the piece must be in a known classical state
 						  - If state is not None, the state of the piece will be temporarily set
