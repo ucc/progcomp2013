@@ -197,7 +197,7 @@ class Board():
 		#print "Moving " + str(x) + "," + str(y) + " to " + str(x2) + "," + str(y2) + "; possible_moves are " + str(self.possible_moves(piece))
 		
 		if not [x2,y2] in self.possible_moves(piece):
-			raise Exception("ILLEGAL move")
+			raise Exception("ILLEGAL move " + str(x2)+","+str(y2))
 		
 		self.grid[x][y] = None
 		taken = self.grid[x2][y2]

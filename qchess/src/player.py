@@ -1,7 +1,7 @@
 import subprocess
 import select
 import platform
-
+import re
 
 agent_timeout = -1.0 # Timeout in seconds for AI players to make moves
 			# WARNING: Won't work for windows based operating systems
@@ -53,7 +53,7 @@ class ExternalAgent(Player):
 		if self.p.stdout in ready:
 			#sys.stderr.write("Reading from " + str(self.p) + " 's stdout...\n")
 			try:
-				result = self.p.stdout.readline().strip("\r\n")
+				result = self.p.stdout.readline().strip(" \t\r\n")
 				#sys.stderr.write("Read \'" + result + "\' from " + str(self.p) + "\n")
 				return result
 			except: # Exception, e:
@@ -67,7 +67,8 @@ class ExternalAgent(Player):
 		line = self.get_response()
 		
 		try:
-			result = map(int, line.split(" "))
+			m = re.match("\s*(\d+)\s+(\d+)\s*", line)
+			result = map(int, [m.group(1), m.group(2)])
 		except:
 			raise Exception("GIBBERISH \"" + str(line) + "\"")
 		return result
@@ -83,7 +84,9 @@ class ExternalAgent(Player):
 		line = self.get_response()
 		
 		try:
-			result = map(int, line.split(" "))
+			m = re.match("\s*(\d+)\s+(\d+)\s*", line)
+			result = map(int, [m.group(1), m.group(2)])
+
 		except:
 			raise Exception("GIBBERISH \"" + str(line) + "\"")
 		return result

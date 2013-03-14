@@ -294,7 +294,7 @@ class Board():
 		#print "Moving " + str(x) + "," + str(y) + " to " + str(x2) + "," + str(y2) + "; possible_moves are " + str(self.possible_moves(piece))
 		
 		if not [x2,y2] in self.possible_moves(piece):
-			raise Exception("ILLEGAL move")
+			raise Exception("ILLEGAL move " + str(x2)+","+str(y2))
 		
 		self.grid[x][y] = None
 		taken = self.grid[x2][y2]
@@ -614,7 +614,7 @@ class Board():
 import subprocess
 import select
 import platform
-
+import re
 
 agent_timeout = -1.0 # Timeout in seconds for AI players to make moves
 			# WARNING: Won't work for windows based operating systems
@@ -666,7 +666,7 @@ class ExternalAgent(Player):
 		if self.p.stdout in ready:
 			#sys.stderr.write("Reading from " + str(self.p) + " 's stdout...\n")
 			try:
-				result = self.p.stdout.readline().strip("\r\n")
+				result = self.p.stdout.readline().strip(" \t\r\n")
 				#sys.stderr.write("Read \'" + result + "\' from " + str(self.p) + "\n")
 				return result
 			except: # Exception, e:
@@ -680,7 +680,8 @@ class ExternalAgent(Player):
 		line = self.get_response()
 		
 		try:
-			result = map(int, line.split(" "))
+			m = re.match("\s*(\d+)\s+(\d+)\s*", line)
+			result = map(int, [m.group(1), m.group(2)])
 		except:
 			raise Exception("GIBBERISH \"" + str(line) + "\"")
 		return result
@@ -696,7 +697,9 @@ class ExternalAgent(Player):
 		line = self.get_response()
 		
 		try:
-			result = map(int, line.split(" "))
+			m = re.match("\s*(\d+)\s+(\d+)\s*", line)
+			result = map(int, [m.group(1), m.group(2)])
+
 		except:
 			raise Exception("GIBBERISH \"" + str(line) + "\"")
 		return result
@@ -1898,7 +1901,7 @@ class GraphicsThread(StoppableThread):
 		#print "Test font"
 		pygame.font.Font(os.path.join(os.path.curdir, "data", "DejaVuSans.ttf"), 32).render("Hello", True,(0,0,0))
 
-		#create_images(grid_sz)
+		#load_images()
 		create_images(grid_sz)
 
 		"""
@@ -1929,7 +1932,7 @@ class GraphicsThread(StoppableThread):
 			pygame.display.flip()
 
 			for event in pygame.event.get():
-				if event.type == pygame.QUIT:
+				if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_q):
 					if isinstance(game, GameThread):
 						with game.lock:
 							game.final_result = ""
@@ -2604,4 +2607,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Thu Feb 28 23:49:16 WST 2013
+# EOF - created from make on Thu Mar 14 22:36:37 WST 2013
