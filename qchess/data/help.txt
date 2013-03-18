@@ -103,6 +103,14 @@ OPTIONS
 		If no time is given, the timeout is disabled.
 
 		By default the timeout is disabled.
+		
+	--blackout[=time]
+		Setting a blackout time will cause the display to become black if the mouse is not moved and no keys or buttons are pressed.
+		If no time is given, the blackout time is disabled.
+		
+		By default the blackout is disabled.
+		
+		This switch was introduced for entirely obscure purposes.
 
 	--classical
 		If this option is used, the game will treat pieces "classically", ie: as in standard chess.

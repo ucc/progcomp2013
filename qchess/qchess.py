@@ -1877,6 +1877,7 @@ try:
 except:
 	graphics_enabled = False
 	
+import time
 
 
 
@@ -1897,12 +1898,14 @@ class GraphicsThread(StoppableThread):
 		self.error = 0
 		self.lock = threading.RLock()
 		self.cond = threading.Condition()
+		self.sleep_timeout = None
+		self.last_event = time.time()
 
 		#print "Test font"
 		pygame.font.Font(os.path.join(os.path.curdir, "data", "DejaVuSans.ttf"), 32).render("Hello", True,(0,0,0))
 
 		#load_images()
-		create_images(grid_sz)
+		load_images()
 
 		"""
 		for c in images.keys():
@@ -1920,18 +1923,24 @@ class GraphicsThread(StoppableThread):
 		
 		while not self.stopped():
 			
-			#print "Display grid"
-			self.board.display_grid(window = self.window, grid_sz = self.grid_sz) # Draw the board
+			if self.sleep_timeout == None or (time.time() - self.last_event) < self.sleep_timeout:
+			
+				#print "Display grid"
+				self.board.display_grid(window = self.window, grid_sz = self.grid_sz) # Draw the board
 
-			#print "Display overlay"
-			self.overlay()
+				#print "Display overlay"
+				self.overlay()
 
-			#print "Display pieces"
-			self.board.display_pieces(window = self.window, grid_sz = self.grid_sz) # Draw the board		
+				#print "Display pieces"
+				self.board.display_pieces(window = self.window, grid_sz = self.grid_sz) # Draw the board		
+				
+			else:
+				self.window.fill((0,0,0))
 
 			pygame.display.flip()
 
 			for event in pygame.event.get():
+				self.last_event = time.time()
 				if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_q):
 					if isinstance(game, GameThread):
 						with game.lock:
@@ -1944,8 +1953,11 @@ class GraphicsThread(StoppableThread):
 					break
 				elif event.type == pygame.MOUSEBUTTONDOWN:
 					self.mouse_down(event)
+					
 				elif event.type == pygame.MOUSEBUTTONUP:
-					self.mouse_up(event)
+					self.mouse_up(event)			
+				
+				
 					
 
 				
@@ -2329,6 +2341,7 @@ import os
 import time
 
 turn_delay = 0.5
+sleep_timeout = None
 [game, graphics] = [None, None]
 
 def make_player(name, colour):
@@ -2381,6 +2394,7 @@ def main(argv):
 	global src_file
 	global graphics_enabled
 	global always_reveal_states
+	global sleep_timeout
 
 	max_moves = None
 	src_file = None
@@ -2462,6 +2476,12 @@ def main(argv):
 				agent_timeout = -1
 			else:
 				agent_timeout = float(arg[2:].split("=")[1])
+		elif (arg[1] == '-' and arg[2:].split("=")[0] == "blackout"):
+			# Screen saver delay
+			if len(arg[2:].split("=")) == 1:
+				sleep_timeout = -1
+			else:
+				sleep_timeout = float(arg[2:].split("=")[1])
 				
 		elif (arg[1] == '-' and arg[2:] == "help"):
 			# Help
@@ -2501,6 +2521,8 @@ def main(argv):
 	if graphics_enabled == True:
 		try:
 			graphics = GraphicsThread(game.board, grid_sz = [64,64]) # Construct a GraphicsThread!
+			
+			graphics.sleep_timeout = sleep_timeout
 
 		except Exception,e:
 			graphics = None
@@ -2607,4 +2629,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Thu Mar 14 22:36:37 WST 2013
+# EOF - created from make on Tue Mar 19 07:36:32 WST 2013

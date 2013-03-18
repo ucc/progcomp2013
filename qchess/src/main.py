@@ -16,6 +16,7 @@ import os
 import time
 
 turn_delay = 0.5
+sleep_timeout = None
 [game, graphics] = [None, None]
 
 def make_player(name, colour):
@@ -68,6 +69,7 @@ def main(argv):
 	global src_file
 	global graphics_enabled
 	global always_reveal_states
+	global sleep_timeout
 
 	max_moves = None
 	src_file = None
@@ -149,6 +151,12 @@ def main(argv):
 				agent_timeout = -1
 			else:
 				agent_timeout = float(arg[2:].split("=")[1])
+		elif (arg[1] == '-' and arg[2:].split("=")[0] == "blackout"):
+			# Screen saver delay
+			if len(arg[2:].split("=")) == 1:
+				sleep_timeout = -1
+			else:
+				sleep_timeout = float(arg[2:].split("=")[1])
 				
 		elif (arg[1] == '-' and arg[2:] == "help"):
 			# Help
@@ -188,6 +196,8 @@ def main(argv):
 	if graphics_enabled == True:
 		try:
 			graphics = GraphicsThread(game.board, grid_sz = [64,64]) # Construct a GraphicsThread!
+			
+			graphics.sleep_timeout = sleep_timeout
 
 		except Exception,e:
 			graphics = None

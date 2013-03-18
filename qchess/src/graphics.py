@@ -4,6 +4,7 @@ try:
 except:
 	graphics_enabled = False
 	
+import time
 
 
 
@@ -24,6 +25,8 @@ class GraphicsThread(StoppableThread):
 		self.error = 0
 		self.lock = threading.RLock()
 		self.cond = threading.Condition()
+		self.sleep_timeout = None
+		self.last_event = time.time()
 
 		#print "Test font"
 		pygame.font.Font(os.path.join(os.path.curdir, "data", "DejaVuSans.ttf"), 32).render("Hello", True,(0,0,0))
@@ -47,18 +50,24 @@ class GraphicsThread(StoppableThread):
 		
 		while not self.stopped():
 			
-			#print "Display grid"
-			self.board.display_grid(window = self.window, grid_sz = self.grid_sz) # Draw the board
+			if self.sleep_timeout == None or (time.time() - self.last_event) < self.sleep_timeout:
+			
+				#print "Display grid"
+				self.board.display_grid(window = self.window, grid_sz = self.grid_sz) # Draw the board
 
-			#print "Display overlay"
-			self.overlay()
+				#print "Display overlay"
+				self.overlay()
 
-			#print "Display pieces"
-			self.board.display_pieces(window = self.window, grid_sz = self.grid_sz) # Draw the board		
+				#print "Display pieces"
+				self.board.display_pieces(window = self.window, grid_sz = self.grid_sz) # Draw the board		
+				
+			else:
+				self.window.fill((0,0,0))
 
 			pygame.display.flip()
 
 			for event in pygame.event.get():
+				self.last_event = time.time()
 				if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_q):
 					if isinstance(game, GameThread):
 						with game.lock:
@@ -71,8 +80,11 @@ class GraphicsThread(StoppableThread):
 					break
 				elif event.type == pygame.MOUSEBUTTONDOWN:
 					self.mouse_down(event)
+					
 				elif event.type == pygame.MOUSEBUTTONUP:
-					self.mouse_up(event)
+					self.mouse_up(event)			
+				
+				
 					
 
 				

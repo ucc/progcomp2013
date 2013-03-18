@@ -1,8 +1,13 @@
 #!/bin/bash
 
 # Qchess login script
+# Forces people to play Quantum Chess in order to login to a UCC clubroom machine
+# (unless they work out that they can just press 'Q')
+
 # Only works with GDM
 # WARNING: Don't use on systems without GDM, because it will probably break everything
+# NOTE: If you have users that never log out (ie: lock the screen instead), this won't be very effective
+
 # Add to root's crontab to run every minute
 
 # Check qchess isn't already running
@@ -31,7 +36,10 @@ win="black"
 
 #espeak "I challenge you to a duel!"
 while [ "$win" == "black" ]; do
-	win=$(./qchess.py @human @internal:AgentBishop)
+	# The game prevents the screen from sleeping automatically...
+	# The blackout option makes the game screen go black if no events happen
+	# It works on clownfish (OpenSUSE); the game is fullscreen. But not cabellera (Scientific Linux); the game isn't fullscreen
+	win=$(./qchess.py --blackout=600 @human @internal:AgentBishop)
 done
 
 #if [ "$win" == "white" ]; then
