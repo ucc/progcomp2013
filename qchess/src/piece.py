@@ -19,7 +19,7 @@ class Piece():
 		
 		self.move_pattern = None
 		self.coverage = None
-		self.possible_moves = None
+		self.possible_moves = {}
 		
 
 	def init_from_copy(self, c):
@@ -58,7 +58,10 @@ class Piece():
 		# Draw the two possible types underneath the current_type image
 		for i in range(len(self.types)):
 			if always_reveal_states == True or self.types[i][0] != '?':
-				img = small_images[self.colour][self.types[i]]
+				if self.types[i][0] == '?':
+					img = small_images[self.colour][self.types[i][1:]]
+				else:
+					img = small_images[self.colour][self.types[i]]
 			else:
 				img = small_images[self.colour]["unknown"] # If the type hasn't been revealed, show a placeholder
 

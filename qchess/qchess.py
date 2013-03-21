@@ -20,7 +20,7 @@ class Piece():
 		
 		self.move_pattern = None
 		self.coverage = None
-		self.possible_moves = None
+		self.possible_moves = {}
 		
 
 	def init_from_copy(self, c):
@@ -59,7 +59,10 @@ class Piece():
 		# Draw the two possible types underneath the current_type image
 		for i in range(len(self.types)):
 			if always_reveal_states == True or self.types[i][0] != '?':
-				img = small_images[self.colour][self.types[i]]
+				if self.types[i][0] == '?':
+					img = small_images[self.colour][self.types[i][1:]]
+				else:
+					img = small_images[self.colour][self.types[i]]
 			else:
 				img = small_images[self.colour]["unknown"] # If the type hasn't been revealed, show a placeholder
 
@@ -405,7 +408,7 @@ class Board():
 		
 		for i in range(len(p.types)):
 			t = p.types[i]
-			prob = 0.5
+			prob = 1.0 / float(len(p.types))
 			if t == "unknown" or p.types[i][0] == '?':
 				total_types = 0
 				for t2 in self.unrevealed_types[p.colour].keys():
@@ -413,17 +416,17 @@ class Board():
 				
 				for t2 in self.unrevealed_types[p.colour].keys():
 					prob2 = float(self.unrevealed_types[p.colour][t2]) / float(total_types)
-					p.current_type = t2
-					for point in self.possible_moves(p, reject_allied):
+					#p.current_type = t2
+					for point in self.possible_moves(p, reject_allied, state=t2):
 						result[point[0]][point[1]] += prob2 * prob
 				
 			else:
-				p.current_type = t
-				for point in self.possible_moves(p, reject_allied):
-					result[point[0]][point[1]] += prob
+				#p.current_type = t
+				for point in self.possible_moves(p, reject_allied, state=t):
+						result[point[0]][point[1]] += prob
 		
 		#self.verify()
-		p.current_type = "unknown"
+		#p.current_type = "unknown"
 		return result
 
 	def prob_is_type(self, p, state):
@@ -461,8 +464,7 @@ class Board():
 			p.current_type = old_type
 			return result
 		
-		if p.possible_moves != None:
-			return p.possible_moves
+		
 		
 		
 		result = []
@@ -2629,4 +2631,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Tue Mar 19 07:36:32 WST 2013
+# EOF - created from make on Thu Mar 21 12:27:36 WST 2013

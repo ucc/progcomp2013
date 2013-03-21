@@ -308,7 +308,7 @@ class Board():
 		
 		for i in range(len(p.types)):
 			t = p.types[i]
-			prob = 0.5
+			prob = 1.0 / float(len(p.types))
 			if t == "unknown" or p.types[i][0] == '?':
 				total_types = 0
 				for t2 in self.unrevealed_types[p.colour].keys():
@@ -316,17 +316,17 @@ class Board():
 				
 				for t2 in self.unrevealed_types[p.colour].keys():
 					prob2 = float(self.unrevealed_types[p.colour][t2]) / float(total_types)
-					p.current_type = t2
-					for point in self.possible_moves(p, reject_allied):
+					#p.current_type = t2
+					for point in self.possible_moves(p, reject_allied, state=t2):
 						result[point[0]][point[1]] += prob2 * prob
 				
 			else:
-				p.current_type = t
-				for point in self.possible_moves(p, reject_allied):
-					result[point[0]][point[1]] += prob
+				#p.current_type = t
+				for point in self.possible_moves(p, reject_allied, state=t):
+						result[point[0]][point[1]] += prob
 		
 		#self.verify()
-		p.current_type = "unknown"
+		#p.current_type = "unknown"
 		return result
 
 	def prob_is_type(self, p, state):
@@ -364,8 +364,7 @@ class Board():
 			p.current_type = old_type
 			return result
 		
-		if p.possible_moves != None:
-			return p.possible_moves
+		
 		
 		
 		result = []
