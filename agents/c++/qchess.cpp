@@ -9,24 +9,27 @@
 
 using namespace std;
 
+
 /**
  * @constructor
  * @param new_x, new_y - Position of piece
  * @param new_colour - Colour of piece
  * @param type1, type2 - Types of piece
- * @param index - Index for initial type of piece
+ * @param new_type_index - Index for initial type of piece
+ * @param new_piece_index - Index for piece in a vector
  */
-Piece::Piece(int new_x, int new_y, const Piece::Colour & new_colour, const Piece::Type & type1, const Piece::Type & type2, int index)
-	: x(new_x), y(new_y), colour(new_colour), type_index(index), types(), current_type()
+Piece::Piece(int new_x, int new_y, const Piece::Colour & new_colour, const Piece::Type & type1, const Piece::Type & type2, 
+	     int new_type_index, int new_piece_index)
+	: x(new_x), y(new_y), colour(new_colour), type_index(new_type_index), types(), current_type(), piece_index(new_piece_index)
 {
 	types[0] = type1; types[1] = type2;
-	if (index < 0 || index >= 2)
+	if (type_index < 0 || type_index >= 2)
 	{
 		current_type = Piece::UNKNOWN;
 	}
 	else
 	{
-		current_type = types[index];
+		current_type = types[type_index];
 	}
 }
 
@@ -34,7 +37,7 @@ Piece::Piece(int new_x, int new_y, const Piece::Colour & new_colour, const Piece
  * @constructor
  * @param cpy - Piece to copy construct from
  */
-Piece::Piece(const Piece & cpy) : x(cpy.x), y(cpy.y), colour(cpy.colour), type_index(cpy.type_index)
+Piece::Piece(const Piece & cpy) : x(cpy.x), y(cpy.y), colour(cpy.colour), type_index(cpy.type_index), piece_index(cpy.piece_index)
 {
 	types[0] = cpy.types[0];
 	types[1] = cpy.types[1];
@@ -44,7 +47,9 @@ Piece::Piece(const Piece & cpy) : x(cpy.x), y(cpy.y), colour(cpy.colour), type_i
  * @constructor
  * @param choose_types - Indicates whether Board should setup the 2nd types of pieces; default false
  */
-Board::Board(bool choose_types)
+Board::Board(bool choose_types) 
+	: white(), black(), white_unknown(), black_unknown(), white_nUnknown(0), black_nUnknown(0),
+	white_king(NULL), black_king(NULL),  parent(NULL)
 {
 
 	// initialise all the Squares
@@ -69,6 +74,14 @@ Board::Board(bool choose_types)
 	freq[Piece::QUEEN] = 1;
 	freq[Piece::PAWN] = 8;
 	
+	if (!choose_types)
+	{
+		white_unknown = freq;
+		black_unknown = freq;
+		white_nUnknown = 15;
+		black_nUnknown = 15;
+	}
+	
 	// for white and black...
 	for (int i = 0; i < 2; ++i)
 	{
@@ -80,26 +93,25 @@ Board::Board(bool choose_types)
 		int y = (i == 0) ? 1 : BOARD_HEIGHT-2;
 		for (int x = 0; x < BOARD_WIDTH; ++x)
 		{	
-			Piece * p = new Piece(x, y, colours[i], Piece::PAWN, Piece::UNKNOWN);
-			v.push_back(p);
+			Piece::AddPiece(v, x, y, colours[i], Piece::PAWN, Piece::UNKNOWN);
 		}		
 
 		// add other pieces
 		y = (i == 0) ? 0 : BOARD_HEIGHT-1;
-		v.push_back(new Piece(0, y, colours[i], Piece::ROOK, Piece::UNKNOWN));
-		v.push_back(new Piece(BOARD_WIDTH-1, y, colours[i], Piece::ROOK, Piece::UNKNOWN));
-		v.push_back(new Piece(1, y, colours[i], Piece::KNIGHT, Piece::UNKNOWN));
-		v.push_back(new Piece(BOARD_WIDTH-2, y, colours[i], Piece::KNIGHT, Piece::UNKNOWN));
-		v.push_back(new Piece(2, y, colours[i], Piece::BISHOP, Piece::UNKNOWN));
-		v.push_back(new Piece(BOARD_WIDTH-3, y, colours[i], Piece::BISHOP, Piece::UNKNOWN));
-		v.push_back(new Piece(3, y, colours[i], Piece::QUEEN, Piece::UNKNOWN));
+		Piece::AddPiece(v, 0, y, colours[i], Piece::ROOK, Piece::UNKNOWN);
+		Piece::AddPiece(v, BOARD_WIDTH-1, y, colours[i], Piece::ROOK, Piece::UNKNOWN);
+		Piece::AddPiece(v, 1, y, colours[i], Piece::KNIGHT, Piece::UNKNOWN);
+		Piece::AddPiece(v, BOARD_WIDTH-2, y, colours[i], Piece::KNIGHT, Piece::UNKNOWN);
+		Piece::AddPiece(v, 2, y, colours[i], Piece::BISHOP, Piece::UNKNOWN);
+		Piece::AddPiece(v, BOARD_WIDTH-3, y, colours[i], Piece::BISHOP, Piece::UNKNOWN);
+		Piece::AddPiece(v, 3, y, colours[i], Piece::QUEEN, Piece::UNKNOWN);
 
-		Piece * k = new Piece(4, y, colours[i], Piece::KING, Piece::KING, 1);
+		Piece * k = Piece::AddPiece(v, 4, y, colours[i], Piece::KING, Piece::KING, 1);
 		if (i == 0)
 			white_king = k;
 		else
 			black_king = k;
-		v.push_back(k);
+		
 		
 		// add to board and choose second types if required
 		map<Piece::Type, int> f(freq); 
@@ -133,10 +145,12 @@ Board::Board(bool choose_types)
 
 /**
  * @constructor
- * @param cpy - Board to copy construct from; each Piece in the copy will be *copied*
- *		The Piece's in the copied Board may be altered without affecting the original
+ * @param cpy - Board to clone
  */
-Board::Board(const Board & cpy)
+Board::Board(Board & cpy) 
+: white(cpy.white), black(cpy.black), white_unknown(cpy.white_unknown), black_unknown(cpy.black_unknown), 
+  white_nUnknown(cpy.white_nUnknown), black_nUnknown(cpy.black_nUnknown), 
+  white_king(cpy.white_king), black_king(cpy.black_king), parent(&cpy)
 {
 	for (int x = 0; x < BOARD_WIDTH; ++x)
 	{
@@ -144,12 +158,7 @@ Board::Board(const Board & cpy)
 		{
 			grid[x][y].x = x;
 			grid[x][y].y = y;
-
-			if (cpy.grid[x][y].piece != NULL)
-			{
-				grid[x][y].piece = new Piece(*(cpy.grid[x][y].piece));
-				pieces(grid[x][y].piece->colour).push_back(grid[x][y].piece);
-			}
+			grid[x][y].piece = cpy.grid[x][y].piece;
 		}
 	}
 }
@@ -176,17 +185,43 @@ Board::~Board()
  * @purpose Update Piece that has been selected
  * @param x, y - Position of Piece to update
  * @param index - 0 or 1 - State the Piece "collapsed" into
- * @param type - Type of the Piece
+ * @param type - Type of the Piece as a string
  */
 void Board::Update_select(int x, int y, int index, const string & type)
 {
-	cerr << "Updating " << x << "," << y << " " << grid[x][y].piece << " " << index << " " << type << "\n";
+	Board::Update_select(x, y, index, Piece::str2type(type));
+}
+
+/**
+ * @funct Update_select
+ * @purpose Update Piece that has been selected
+ * @param x, y - Position of Piece to update
+ * @param index - 0 or 1 - State the Piece "collapsed" into
+ * @param t - Type of the Piece
+ */
+void Board::Update_select(int x, int y, int index, const Piece::Type & t)
+{
+	cerr << "Updating " << x << "," << y << " " << grid[x][y].piece << " " << index << " " << t << "\n";
 	Square & s = grid[x][y];
+	
+	Clone_copy(s);
+	
 	assert(s.piece != NULL);
 	assert(index >= 0 && index < 2);
 	s.piece->type_index = index;
-	s.piece->types[index] = Piece::str2type(type);
-	s.piece->current_type = s.piece->types[index];
+	
+	if (s.piece->types[index] == Piece::UNKNOWN)
+	{
+		map<Piece::Type, int> & m = unknown_types(s.piece->colour);
+		int n = (m[t]--);
+		if (n < 0)
+			throw Exception("Board::Update_select", "Too many pieces of type %s found", Piece::type2str(t));
+		
+		nUnknown(s.piece->colour)--;
+		
+	}
+	s.piece->types[index] = t;
+	s.piece->current_type = t;
 }
 
 /**
@@ -201,6 +236,12 @@ void Board::Update_move(int x1, int y1, int x2, int y2)
 {
 	Square & s1 = grid[x1][y1];
 	Square & s2 = grid[x2][y2];
+	
+	Clone_copy(s1);
+	
+
+	
+
 	if (s2.piece != NULL)
 	{
 		vector<Piece*> & p = pieces(s2.piece->colour);
@@ -214,6 +255,11 @@ void Board::Update_move(int x1, int y1, int x2, int y2)
 			}
 			++i;
 		}
+		while (i != p.end())
+		{
+			(*i)->piece_index -= 1;
+			++i;
+		}
 		Piece * k = king(s2.piece->colour);
 		if (k == s2.piece)
 		{
@@ -222,8 +268,10 @@ void Board::Update_move(int x1, int y1, int x2, int y2)
 			else
 				black_king = NULL;
 		}
-
-		delete s2.piece;
+		if ((IsClone() && s2.piece == parent->grid[x2][y2].piece) == false)
+		{
+			delete s2.piece;
+		}
 	}	
 
 	s1.piece->x = s2.x;
@@ -376,6 +424,36 @@ Piece::Type Piece::str2type(const string & str)
 }
 
 /**
+ * @funct type2str
+ * @purpose Convert Piece::Type to string
+ * @param t - The Types
+ * @returns a const char*
+ */
+const char * Piece::type2str(const Piece::Type & t)
+{
+	switch (t)
+	{
+		case PAWN:
+			return "pawn";
+		case BISHOP:
+			return "bishop";
+		case KNIGHT:
+			return "knight";
+		case ROOK:
+			return "rook";
+		case QUEEN:
+			return "queen";
+		case UNKNOWN:
+			return "unknown";
+		case KING:
+			return "king";
+		default:
+			throw Exception("Piece::type2str", "Unknown type %d", (int)t);
+			return "";
+	}
+}
+
+/**
  * @funct str2colour
  * @purpose Convert string to Piece::Colour
  * @param str - The string
@@ -392,4 +470,34 @@ Piece::Colour Piece::str2colour(const string & str)
 	return Piece::BLACK; // should never get here
 }
 
+/**
+ * @funct AddPiece
+ * @purpose Creates a new Piece and adds it to a vector
+ * @param v - The vector
+ * @params - All remaining parameters passed to Piece::Piece
+ * @returns Pointer to the new Piece
+ */
+Piece * Piece::AddPiece(vector<Piece*> & v, int x, int y, const Piece::Colour & colour, const Piece::Type & t1, const Piece::Type & t2,
+			int type_index)
+{
+	Piece * p = new Piece(x,y,colour,t1, t2,type_index, v.size());
+	v.push_back(p);
+	return p;
+}
 
+/**
+ * @funct Clone_copy
+ * @purpose If necessary, copy the piece in the square
+ * @param s - The square
+ */
+void Board::Clone_copy(Square & s)
+{
+	if (s.piece == NULL || !IsClone()) return;
+	if (parent->grid[s.x][s.y].piece == s.piece)
+	{
+		s.piece = new Piece(*(s.piece));
+		vector<Piece*> & v = pieces(s.piece->colour);
+		v[s.piece->piece_index] = s.piece;
+	}
+	
+}
