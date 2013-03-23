@@ -1874,8 +1874,10 @@ def load_images(image_dir=os.path.join(os.path.curdir, "data", "images")):
 			small_images[c].update({p : pygame.image.load(os.path.join(image_dir, c + "_" + p + "_small.png"))})
 # --- images.py --- #
 graphics_enabled = True
+
 try:
 	import pygame
+	os.environ["SDL_VIDEO_ALLOW_SCREENSAVER"] = "1"
 except:
 	graphics_enabled = False
 	
@@ -1907,7 +1909,7 @@ class GraphicsThread(StoppableThread):
 		pygame.font.Font(os.path.join(os.path.curdir, "data", "DejaVuSans.ttf"), 32).render("Hello", True,(0,0,0))
 
 		#load_images()
-		load_images()
+		create_images(grid_sz)
 
 		"""
 		for c in images.keys():
@@ -2631,4 +2633,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Thu Mar 21 12:27:36 WST 2013
+# EOF - created from make on Sat Mar 23 12:55:44 WST 2013

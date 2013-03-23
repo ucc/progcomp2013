@@ -1,6 +1,8 @@
 graphics_enabled = True
+
 try:
 	import pygame
+	os.environ["SDL_VIDEO_ALLOW_SCREENSAVER"] = "1"
 except:
 	graphics_enabled = False
 	
