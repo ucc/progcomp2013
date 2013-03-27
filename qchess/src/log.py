@@ -17,7 +17,7 @@ class LogFile():
 	def setup(self, board, players):
 		
 		for p in players:
-			self.log.write("# " + p.colour + " : " + p.name + "\n")
+			self.log.write("# " + str(p.colour) + " : " + str(p.name) + "\n")
 		
 		self.log.write("# Initial board\n")
 		for x in range(0, w):

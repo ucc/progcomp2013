@@ -1349,7 +1349,7 @@ class LogFile():
 	def setup(self, board, players):
 		
 		for p in players:
-			self.log.write("# " + p.colour + " : " + p.name + "\n")
+			self.log.write("# " + str(p.colour) + " : " + str(p.name) + "\n")
 		
 		self.log.write("# Initial board\n")
 		for x in range(0, w):
@@ -2633,4 +2633,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Sat Mar 23 12:55:44 WST 2013
+# EOF - created from make on Wed Mar 27 12:38:30 WST 2013
