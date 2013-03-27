@@ -1256,7 +1256,7 @@ class NetworkSender(Player,Network):
 class NetworkReceiver(Player,Network):
 	def __init__(self, colour, address=None):
 		
-		Player.__init__(self, address, colour)
+		Player.__init__(self, "NetworkReceiver", colour)
 
 		self.address = address
 
@@ -2633,4 +2633,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Wed Mar 27 12:38:30 WST 2013
+# EOF - created from make on Wed Mar 27 12:42:42 WST 2013

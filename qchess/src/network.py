@@ -132,7 +132,7 @@ class NetworkSender(Player,Network):
 class NetworkReceiver(Player,Network):
 	def __init__(self, colour, address=None):
 		
-		Player.__init__(self, address, colour)
+		Player.__init__(self, "NetworkReceiver", colour)
 
 		self.address = address
 
