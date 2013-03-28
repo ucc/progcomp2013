@@ -1240,7 +1240,7 @@ class NetworkSender(Player,Network):
 		if selected != None and selected.colour == self.colour and len(s) > 2 and not "->" in s:
 			s = " ".join(s[0:3])
 			for i in range(2):
-				if selected.types_revealed[i] == True:
+				if selected.types[i][0] == '?':
 					s += " " + str(selected.types[i])
 				else:
 					s += " unknown"
@@ -1256,7 +1256,7 @@ class NetworkSender(Player,Network):
 class NetworkReceiver(Player,Network):
 	def __init__(self, colour, address=None):
 		
-		Player.__init__(self, address, colour)
+		Player.__init__(self, "NetworkReceiver", colour)
 
 		self.address = address
 
@@ -1301,9 +1301,9 @@ class NetworkReceiver(Player,Network):
 			for i in range(2):
 				selected.types[i] = str(s[3+i])
 				if s[3+i] == "unknown":
-					selected.types_revealed[i] = False
+					selected.types[i] = '?'+selected.types[i]
 				else:
-					selected.types_revealed[i] = True
+					selected.types[i] = selected.types[i][1:]
 			selected.current_type = selected.types[selected.choice]	
 		else:
 			pass
@@ -1349,7 +1349,7 @@ class LogFile():
 	def setup(self, board, players):
 		
 		for p in players:
-			self.log.write("# " + p.colour + " : " + p.name + "\n")
+			self.log.write("# " + str(p.colour) + " : " + str(p.name) + "\n")
 		
 		self.log.write("# Initial board\n")
 		for x in range(0, w):
@@ -2633,4 +2633,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Sat Mar 23 12:55:44 WST 2013
+# EOF - created from make on Wed Mar 27 13:05:44 WST 2013
