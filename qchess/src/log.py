@@ -173,6 +173,9 @@ def log(s):
 	for l in log_files:
 		l.write(s)
 		
+def debug(s):
+	sys.stderr.write("# DEBUG: " + s + "\n")
+		
 
 def log_init(board, players):
 	for l in log_files:

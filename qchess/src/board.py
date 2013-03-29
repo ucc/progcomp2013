@@ -172,10 +172,10 @@ class Board():
 
 	# Update the board when a piece has been selected
 	# "type" is apparently reserved, so I'll use "state"
-	def update_select(self, x, y, type_index, state):
+	def update_select(self, x, y, type_index, state, sanity=True):
 		piece = self.grid[x][y]
 		if piece.types[type_index] == "unknown":
-			if not state in self.unrevealed_types[piece.colour].keys():
+			if not state in self.unrevealed_types[piece.colour].keys() and sanity == True:
 				raise Exception("SANITY: Too many " + piece.colour + " " + state + "s")
 			self.unrevealed_types[piece.colour][state] -= 1
 			if self.unrevealed_types[piece.colour][state] <= 0:
@@ -191,12 +191,12 @@ class Board():
 		piece.possible_moves = None
 		
 	# Update the board when a piece has been moved
-	def update_move(self, x, y, x2, y2):
+	def update_move(self, x, y, x2, y2, sanity=True):
 				
 		piece = self.grid[x][y]
 		#print "Moving " + str(x) + "," + str(y) + " to " + str(x2) + "," + str(y2) + "; possible_moves are " + str(self.possible_moves(piece))
 		
-		if not [x2,y2] in self.possible_moves(piece):
+		if not [x2,y2] in self.possible_moves(piece) and sanity == True:
 			raise Exception("ILLEGAL move " + str(x2)+","+str(y2))
 		
 		self.grid[x][y] = None
@@ -231,7 +231,7 @@ class Board():
 
 	# Update the board from a string
 	# Guesses what to do based on the format of the string
-	def update(self, result):
+	def update(self, result, sanity=True):
 		#print "Update called with \"" + str(result) + "\""
 		# String always starts with 'x y'
 		try:
@@ -241,7 +241,7 @@ class Board():
 			raise Exception("GIBBERISH \""+ str(result) + "\"") # Raise expectations
 
 		piece = self.grid[x][y]
-		if piece == None:
+		if piece == None and sanity == True:
 			raise Exception("EMPTY")
 
 		# If a piece is being moved, the third token is '->'
@@ -254,7 +254,7 @@ class Board():
 				raise Exception("GIBBERISH \"" + str(result) + "\"") # Raise the alarm
 
 			# Move the piece (take opponent if possible)
-			self.update_move(x, y, x2, y2)
+			self.update_move(x, y, x2, y2, sanity)
 			
 		else:
 			# Otherwise we will just assume a piece has been selected
@@ -264,8 +264,9 @@ class Board():
 			except:
 				raise Exception("GIBBERISH \"" + result + "\"") # Throw a hissy fit
 
+
 			# Select the piece
-			self.update_select(x, y, type_index, state)
+			self.update_select(x, y, type_index, state, sanity)
 
 		return result
 

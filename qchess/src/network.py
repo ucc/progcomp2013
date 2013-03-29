@@ -7,7 +7,10 @@ network_timeout_delay = 1.0 # Maximum time between two characters being received
 class Network():
 	def __init__(self, colour, address = None):
 		self.socket = socket.socket()
+		self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		#self.socket.setblocking(0)
+		
+		self.server = (address == None)
 
 		if colour == "white":
 			self.port = 4562
@@ -19,7 +22,7 @@ class Network():
 	#	print str(self) + " listens on port " + str(self.port)
 
 		if address == None:
-			self.host = socket.gethostname()
+			self.host = "0.0.0.0" #socket.gethostname() # Breaks things???
 			self.socket.bind((self.host, self.port))
 			self.socket.listen(5)	
 
@@ -34,6 +37,7 @@ class Network():
 			self.src.send("ok\n")
 			if self.get_response() == "QUIT":
 				self.src.close()
+			self.address = (address, self.port)
 
 	def get_response(self):
 		# Timeout the start of the message (first character)
@@ -79,6 +83,7 @@ class Network():
 			game.stop()
 			return True
 
+
 		
 
 class NetworkSender(Player,Network):
@@ -89,38 +94,52 @@ class NetworkSender(Player,Network):
 		self.address = address
 
 	def connect(self):
-		Network.__init__(self, self.base_player.colour, self.address)
-
+		nAttempts=3
+		for i in range(nAttempts):
+			try:
+				Network.__init__(self, self.colour, self.address)
+				debug(str(self) +" connected to " + str(self.address))
+				return
+			except Exception, e:
+				debug(str(self) +" attempt " + str(i) + ": " +  str(e.message))
+				
+		raise Exception("NETWORK - Can't connect to " + str(self.address))
 
 
 	def select(self):
 		[x,y] = self.base_player.select()
 		choice = self.board.grid[x][y]
 		s = str(x) + " " + str(y)
-		#print str(self) + ".select sends " + s
+		#debug(str(self) + " sends: " + str(s))
 		self.send_message(s)
 		return [x,y]
 
 	def get_move(self):
 		[x,y] = self.base_player.get_move()
 		s = str(x) + " " + str(y)
-		#print str(self) + ".get_move sends " + s
+		#debug(str(self) + " sends: " + str(s))
 		self.send_message(s)
 		return [x,y]
 
 	def update(self, s):
+		
 		self.base_player.update(s)
+		if self.server == True:
+			#debug(str(self) + " sends: " + str(s))
+			self.send_message(s)
+		return s
+		
 		s = s.split(" ")
 		[x,y] = map(int, s[0:2])
 		selected = self.board.grid[x][y]
 		if selected != None and selected.colour == self.colour and len(s) > 2 and not "->" in s:
 			s = " ".join(s[0:3])
 			for i in range(2):
-				if selected.types[i][0] == '?':
+				if selected.types[i][0] != '?':
 					s += " " + str(selected.types[i])
 				else:
 					s += " unknown"
-			#print str(self) + ".update sends " + s
+			#debug(str(self) +" sending: " + str(s))
 			self.send_message(s)
 				
 
@@ -128,24 +147,48 @@ class NetworkSender(Player,Network):
 		self.base_player.quit(final_result)
 		#self.src.send("QUIT " + str(final_result) + "\n")
 		self.src.close()
+		
+	def __str__(self):
+		s = "NetworkSender:"
+		if self.server:
+			s += "server"
+		else:
+			s += "client"
+		s += ":"+str(self.address)
+		return s
+
 
 class NetworkReceiver(Player,Network):
 	def __init__(self, colour, address=None):
 		
-		Player.__init__(self, "NetworkReceiver", colour)
+		s = "@network"
+		if address != None:
+			s += ":"+str(address)
+		Player.__init__(self, s, colour)
 
 		self.address = address
 
 		self.board = None
 
+
 	def connect(self):
-		Network.__init__(self, self.colour, self.address)
+		nAttempts=3
+		for i in range(nAttempts):
+			try:
+				Network.__init__(self, self.colour, self.address)
+				debug(str(self) +" connected to " + str(self.address))
+				return
+			except Exception, e:
+				debug(str(self) +" attempt " + str(i) + ": " +  str(e.message))
+				
+		raise Exception("NETWORK - Can't connect to " + str(self.address))
+			
 			
 
 	def select(self):
 		
 		s = self.get_response()
-		#print str(self) + ".select gets " + s
+		#debug(str(self) +".select reads: " + str(s))
 		[x,y] = map(int,s.split(" "))
 		if x == -1 and y == -1:
 			#print str(self) + ".select quits the game"
@@ -155,7 +198,7 @@ class NetworkReceiver(Player,Network):
 		return [x,y]
 	def get_move(self):
 		s = self.get_response()
-		#print str(self) + ".get_move gets " + s
+		#debug(str(self) +".get_move reads: " + str(s))
 		[x,y] = map(int,s.split(" "))
 		if x == -1 and y == -1:
 			#print str(self) + ".get_move quits the game"
@@ -165,27 +208,24 @@ class NetworkReceiver(Player,Network):
 		return [x,y]
 
 	def update(self, result):
-		
-		result = result.split(" ")
-		[x,y] = map(int, result[0:2])
-		selected = self.board.grid[x][y]
-		if selected != None and selected.colour == self.colour and len(result) > 2 and not "->" in result:
-			s = self.get_response()
-			#print str(self) + ".update - receives " + str(s)
-			s = s.split(" ")
-			selected.choice = int(s[2])
-			for i in range(2):
-				selected.types[i] = str(s[3+i])
-				if s[3+i] == "unknown":
-					selected.types[i] = '?'+selected.types[i]
-				else:
-					selected.types[i] = selected.types[i][1:]
-			selected.current_type = selected.types[selected.choice]	
-		else:
-			pass
-			#print str(self) + ".update - ignore result " + str(result)			
+		if self.server == True:
+			return result
+		s = self.get_response()
+		#debug(str(self) + ".update reads: " + str(s))
+		if not "->" in s.split(" "):
+			self.board.update(s, sanity=False)
+		return s
 		
 
 	def quit(self, final_result):
 		self.src.close()
+		
+	def __str__(self):
+		s = "NetworkReceiver:"
+		if self.server:
+			s += "server"
+		else:
+			s += "client"
+		s += ":"+str(self.address)
+		return s
 	

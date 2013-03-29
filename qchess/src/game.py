@@ -33,13 +33,17 @@ class GameThread(StoppableThread):
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
 						break
-
+				
+					if not (isinstance(p, Network) and p.server == False):
+						result = self.board.select(x, y, colour = p.colour)
+					else:
+						#debug(str(self) + " don't update local board")
+						result = ""
 					
-						
-
-					result = self.board.select(x, y, colour = p.colour)				
+					result = p.update(result)
 					for p2 in self.players:
-						p2.update(result) # Inform players of what happened
+						if p2 != p:
+							result = p2.update(result) # Inform players of what happened
 
 
 					log(result)

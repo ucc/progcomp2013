@@ -16,7 +16,7 @@ class Player():
 		self.colour = colour
 
 	def update(self, result):
-		pass
+		return result
 
 	def reset_board(self, s):
 		pass
@@ -76,7 +76,7 @@ class ExternalAgent(Player):
 	def update(self, result):
 		#print "Update " + str(result) + " called for AgentPlayer"
 		self.send_message(result)
-
+		return result
 
 	def get_move(self):
 		
@@ -162,6 +162,7 @@ class HumanPlayer(Player):
 			pass
 		else:
 			sys.stdout.write(result + "\n")	
+		return result
 
 
 # Default internal player (makes random moves)
@@ -177,7 +178,8 @@ class InternalAgent(Player):
 	def update(self, result):
 		
 		self.board.update(result)
-		self.board.verify()
+		#self.board.verify()
+		return result
 
 	def reset_board(self, s):
 		self.board.reset_board(s)

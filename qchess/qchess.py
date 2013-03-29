@@ -272,10 +272,10 @@ class Board():
 
 	# Update the board when a piece has been selected
 	# "type" is apparently reserved, so I'll use "state"
-	def update_select(self, x, y, type_index, state):
+	def update_select(self, x, y, type_index, state, sanity=True):
 		piece = self.grid[x][y]
 		if piece.types[type_index] == "unknown":
-			if not state in self.unrevealed_types[piece.colour].keys():
+			if not state in self.unrevealed_types[piece.colour].keys() and sanity == True:
 				raise Exception("SANITY: Too many " + piece.colour + " " + state + "s")
 			self.unrevealed_types[piece.colour][state] -= 1
 			if self.unrevealed_types[piece.colour][state] <= 0:
@@ -291,12 +291,12 @@ class Board():
 		piece.possible_moves = None
 		
 	# Update the board when a piece has been moved
-	def update_move(self, x, y, x2, y2):
+	def update_move(self, x, y, x2, y2, sanity=True):
 				
 		piece = self.grid[x][y]
 		#print "Moving " + str(x) + "," + str(y) + " to " + str(x2) + "," + str(y2) + "; possible_moves are " + str(self.possible_moves(piece))
 		
-		if not [x2,y2] in self.possible_moves(piece):
+		if not [x2,y2] in self.possible_moves(piece) and sanity == True:
 			raise Exception("ILLEGAL move " + str(x2)+","+str(y2))
 		
 		self.grid[x][y] = None
@@ -331,7 +331,7 @@ class Board():
 
 	# Update the board from a string
 	# Guesses what to do based on the format of the string
-	def update(self, result):
+	def update(self, result, sanity=True):
 		#print "Update called with \"" + str(result) + "\""
 		# String always starts with 'x y'
 		try:
@@ -341,7 +341,7 @@ class Board():
 			raise Exception("GIBBERISH \""+ str(result) + "\"") # Raise expectations
 
 		piece = self.grid[x][y]
-		if piece == None:
+		if piece == None and sanity == True:
 			raise Exception("EMPTY")
 
 		# If a piece is being moved, the third token is '->'
@@ -354,7 +354,7 @@ class Board():
 				raise Exception("GIBBERISH \"" + str(result) + "\"") # Raise the alarm
 
 			# Move the piece (take opponent if possible)
-			self.update_move(x, y, x2, y2)
+			self.update_move(x, y, x2, y2, sanity)
 			
 		else:
 			# Otherwise we will just assume a piece has been selected
@@ -364,8 +364,9 @@ class Board():
 			except:
 				raise Exception("GIBBERISH \"" + result + "\"") # Throw a hissy fit
 
+
 			# Select the piece
-			self.update_select(x, y, type_index, state)
+			self.update_select(x, y, type_index, state, sanity)
 
 		return result
 
@@ -631,7 +632,7 @@ class Player():
 		self.colour = colour
 
 	def update(self, result):
-		pass
+		return result
 
 	def reset_board(self, s):
 		pass
@@ -691,7 +692,7 @@ class ExternalAgent(Player):
 	def update(self, result):
 		#print "Update " + str(result) + " called for AgentPlayer"
 		self.send_message(result)
-
+		return result
 
 	def get_move(self):
 		
@@ -777,6 +778,7 @@ class HumanPlayer(Player):
 			pass
 		else:
 			sys.stdout.write(result + "\n")	
+		return result
 
 
 # Default internal player (makes random moves)
@@ -792,7 +794,8 @@ class InternalAgent(Player):
 	def update(self, result):
 		
 		self.board.update(result)
-		self.board.verify()
+		#self.board.verify()
+		return result
 
 	def reset_board(self, s):
 		self.board.reset_board(s)
@@ -1131,7 +1134,10 @@ network_timeout_delay = 1.0 # Maximum time between two characters being received
 class Network():
 	def __init__(self, colour, address = None):
 		self.socket = socket.socket()
+		self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		#self.socket.setblocking(0)
+		
+		self.server = (address == None)
 
 		if colour == "white":
 			self.port = 4562
@@ -1143,7 +1149,7 @@ class Network():
 	#	print str(self) + " listens on port " + str(self.port)
 
 		if address == None:
-			self.host = socket.gethostname()
+			self.host = "0.0.0.0" #socket.gethostname() # Breaks things???
 			self.socket.bind((self.host, self.port))
 			self.socket.listen(5)	
 
@@ -1158,6 +1164,7 @@ class Network():
 			self.src.send("ok\n")
 			if self.get_response() == "QUIT":
 				self.src.close()
+			self.address = (address, self.port)
 
 	def get_response(self):
 		# Timeout the start of the message (first character)
@@ -1203,6 +1210,7 @@ class Network():
 			game.stop()
 			return True
 
+
 		
 
 class NetworkSender(Player,Network):
@@ -1213,38 +1221,52 @@ class NetworkSender(Player,Network):
 		self.address = address
 
 	def connect(self):
-		Network.__init__(self, self.base_player.colour, self.address)
-
+		nAttempts=3
+		for i in range(nAttempts):
+			try:
+				Network.__init__(self, self.colour, self.address)
+				debug(str(self) +" connected to " + str(self.address))
+				return
+			except Exception, e:
+				debug(str(self) +" attempt " + str(i) + ": " +  str(e.message))
+				
+		raise Exception("NETWORK - Can't connect to " + str(self.address))
 
 
 	def select(self):
 		[x,y] = self.base_player.select()
 		choice = self.board.grid[x][y]
 		s = str(x) + " " + str(y)
-		#print str(self) + ".select sends " + s
+		#debug(str(self) + " sends: " + str(s))
 		self.send_message(s)
 		return [x,y]
 
 	def get_move(self):
 		[x,y] = self.base_player.get_move()
 		s = str(x) + " " + str(y)
-		#print str(self) + ".get_move sends " + s
+		#debug(str(self) + " sends: " + str(s))
 		self.send_message(s)
 		return [x,y]
 
 	def update(self, s):
+		
 		self.base_player.update(s)
+		if self.server == True:
+			#debug(str(self) + " sends: " + str(s))
+			self.send_message(s)
+		return s
+		
 		s = s.split(" ")
 		[x,y] = map(int, s[0:2])
 		selected = self.board.grid[x][y]
 		if selected != None and selected.colour == self.colour and len(s) > 2 and not "->" in s:
 			s = " ".join(s[0:3])
 			for i in range(2):
-				if selected.types[i][0] == '?':
+				if selected.types[i][0] != '?':
 					s += " " + str(selected.types[i])
 				else:
 					s += " unknown"
-			#print str(self) + ".update sends " + s
+			#debug(str(self) +" sending: " + str(s))
 			self.send_message(s)
 				
 
@@ -1252,24 +1274,48 @@ class NetworkSender(Player,Network):
 		self.base_player.quit(final_result)
 		#self.src.send("QUIT " + str(final_result) + "\n")
 		self.src.close()
+		
+	def __str__(self):
+		s = "NetworkSender:"
+		if self.server:
+			s += "server"
+		else:
+			s += "client"
+		s += ":"+str(self.address)
+		return s
+
 
 class NetworkReceiver(Player,Network):
 	def __init__(self, colour, address=None):
 		
-		Player.__init__(self, "NetworkReceiver", colour)
+		s = "@network"
+		if address != None:
+			s += ":"+str(address)
+		Player.__init__(self, s, colour)
 
 		self.address = address
 
 		self.board = None
 
+
 	def connect(self):
-		Network.__init__(self, self.colour, self.address)
+		nAttempts=3
+		for i in range(nAttempts):
+			try:
+				Network.__init__(self, self.colour, self.address)
+				debug(str(self) +" connected to " + str(self.address))
+				return
+			except Exception, e:
+				debug(str(self) +" attempt " + str(i) + ": " +  str(e.message))
+				
+		raise Exception("NETWORK - Can't connect to " + str(self.address))
+			
 			
 
 	def select(self):
 		
 		s = self.get_response()
-		#print str(self) + ".select gets " + s
+		#debug(str(self) +".select reads: " + str(s))
 		[x,y] = map(int,s.split(" "))
 		if x == -1 and y == -1:
 			#print str(self) + ".select quits the game"
@@ -1279,7 +1325,7 @@ class NetworkReceiver(Player,Network):
 		return [x,y]
 	def get_move(self):
 		s = self.get_response()
-		#print str(self) + ".get_move gets " + s
+		#debug(str(self) +".get_move reads: " + str(s))
 		[x,y] = map(int,s.split(" "))
 		if x == -1 and y == -1:
 			#print str(self) + ".get_move quits the game"
@@ -1289,29 +1335,26 @@ class NetworkReceiver(Player,Network):
 		return [x,y]
 
 	def update(self, result):
-		
-		result = result.split(" ")
-		[x,y] = map(int, result[0:2])
-		selected = self.board.grid[x][y]
-		if selected != None and selected.colour == self.colour and len(result) > 2 and not "->" in result:
-			s = self.get_response()
-			#print str(self) + ".update - receives " + str(s)
-			s = s.split(" ")
-			selected.choice = int(s[2])
-			for i in range(2):
-				selected.types[i] = str(s[3+i])
-				if s[3+i] == "unknown":
-					selected.types[i] = '?'+selected.types[i]
-				else:
-					selected.types[i] = selected.types[i][1:]
-			selected.current_type = selected.types[selected.choice]	
-		else:
-			pass
-			#print str(self) + ".update - ignore result " + str(result)			
+		if self.server == True:
+			return result
+		s = self.get_response()
+		#debug(str(self) + ".update reads: " + str(s))
+		if not "->" in s.split(" "):
+			self.board.update(s, sanity=False)
+		return s
 		
 
 	def quit(self, final_result):
 		self.src.close()
+		
+	def __str__(self):
+		s = "NetworkReceiver:"
+		if self.server:
+			s += "server"
+		else:
+			s += "client"
+		s += ":"+str(self.address)
+		return s
 	
 # --- network.py --- #
 import threading
@@ -1505,6 +1548,9 @@ def log(s):
 	for l in log_files:
 		l.write(s)
 		
+def debug(s):
+	sys.stderr.write("# DEBUG: " + s + "\n")
+		
 
 def log_init(board, players):
 	for l in log_files:
@@ -1546,13 +1592,17 @@ class GameThread(StoppableThread):
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
 						break
-
+				
+					if not (isinstance(p, Network) and p.server == False):
+						result = self.board.select(x, y, colour = p.colour)
+					else:
+						#debug(str(self) + " don't update local board")
+						result = ""
 					
-						
-
-					result = self.board.select(x, y, colour = p.colour)				
+					result = p.update(result)
 					for p2 in self.players:
-						p2.update(result) # Inform players of what happened
+						if p2 != p:
+							result = p2.update(result) # Inform players of what happened
 
 
 					log(result)
@@ -2565,6 +2615,10 @@ def main(argv):
 			if graphics != None:
 				graphics.board.display_grid(graphics.window, graphics.grid_sz)
 				graphics.message("Connecting to " + p.colour + " player...")
+				
+			# Handle race condition by having clients wait longer than servers to connect
+			if p.address != None:
+				time.sleep(0.2)
 			p.connect()
 
 	
@@ -2633,4 +2687,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Wed Mar 27 13:05:44 WST 2013
+# EOF - created from make on Fri Mar 29 18:33:24 WST 2013

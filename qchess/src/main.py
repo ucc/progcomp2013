@@ -236,6 +236,10 @@ def main(argv):
 			if graphics != None:
 				graphics.board.display_grid(graphics.window, graphics.grid_sz)
 				graphics.message("Connecting to " + p.colour + " player...")
+				
+			# Handle race condition by having clients wait longer than servers to connect
+			if p.address != None:
+				time.sleep(0.2)
 			p.connect()
 
 	
