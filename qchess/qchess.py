@@ -1954,6 +1954,7 @@ class GraphicsThread(StoppableThread):
 		self.cond = threading.Condition()
 		self.sleep_timeout = None
 		self.last_event = time.time()
+		self.blackout = False
 
 		#print "Test font"
 		pygame.font.Font(os.path.join(os.path.curdir, "data", "DejaVuSans.ttf"), 32).render("Hello", True,(0,0,0))
@@ -1987,8 +1988,11 @@ class GraphicsThread(StoppableThread):
 
 				#print "Display pieces"
 				self.board.display_pieces(window = self.window, grid_sz = self.grid_sz) # Draw the board		
+				self.blackout = False
 				
-			else:
+			elif pygame.mouse.get_focused() and not self.blackout:
+				os.system("xset dpms force off")
+				self.blackout = True
 				self.window.fill((0,0,0))
 
 			pygame.display.flip()
@@ -2013,7 +2017,7 @@ class GraphicsThread(StoppableThread):
 				
 				
 					
-
+  
 				
 								
 						
@@ -2687,4 +2691,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Fri Mar 29 18:33:24 WST 2013
+# EOF - created from make on Tue Apr  2 15:05:07 WST 2013
