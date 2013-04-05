@@ -19,8 +19,8 @@ using namespace std;
  * @param new_piece_index - Index for piece in a vector
  */
 Piece::Piece(int new_x, int new_y, const Piece::Colour & new_colour, const Piece::Type & type1, const Piece::Type & type2, 
-	     int new_type_index, int new_piece_index)
-	: x(new_x), y(new_y), colour(new_colour), type_index(new_type_index), types(), current_type(), piece_index(new_piece_index)
+	     int new_type_index)
+	: x(new_x), y(new_y), colour(new_colour), type_index(new_type_index), types(), current_type()
 {
 	types[0] = type1; types[1] = type2;
 	if (type_index < 0 || type_index >= 2)
@@ -37,7 +37,7 @@ Piece::Piece(int new_x, int new_y, const Piece::Colour & new_colour, const Piece
  * @constructor
  * @param cpy - Piece to copy construct from
  */
-Piece::Piece(const Piece & cpy) : x(cpy.x), y(cpy.y), colour(cpy.colour), type_index(cpy.type_index), piece_index(cpy.piece_index)
+Piece::Piece(const Piece & cpy) : x(cpy.x), y(cpy.y), colour(cpy.colour), type_index(cpy.type_index)
 {
 	types[0] = cpy.types[0];
 	types[1] = cpy.types[1];
@@ -49,7 +49,7 @@ Piece::Piece(const Piece & cpy) : x(cpy.x), y(cpy.y), colour(cpy.colour), type_i
  */
 Board::Board(bool choose_types) 
 	: white(), black(), white_unknown(), black_unknown(), white_nUnknown(0), black_nUnknown(0),
-	white_king(NULL), black_king(NULL),  parent(NULL)
+	white_king(NULL), black_king(NULL)
 {
 
 	// initialise all the Squares
@@ -150,7 +150,7 @@ Board::Board(bool choose_types)
 Board::Board(Board & cpy) 
 : white(cpy.white), black(cpy.black), white_unknown(cpy.white_unknown), black_unknown(cpy.black_unknown), 
   white_nUnknown(cpy.white_nUnknown), black_nUnknown(cpy.black_nUnknown), 
-  white_king(cpy.white_king), black_king(cpy.black_king), parent(&cpy)
+  white_king(cpy.white_king), black_king(cpy.black_king)
 {
 	for (int x = 0; x < BOARD_WIDTH; ++x)
 	{
@@ -158,7 +158,11 @@ Board::Board(Board & cpy)
 		{
 			grid[x][y].x = x;
 			grid[x][y].y = y;
-			grid[x][y].piece = cpy.grid[x][y].piece;
+			if (cpy.grid[x][y].piece != NULL)
+			{
+				vector<Piece*> & v = pieces(cpy.grid[x][y].piece->colour);
+				Piece::AddPiece(v, *(cpy.grid[x][y].piece));
+			}
 		}
 	}
 }
@@ -204,7 +208,7 @@ void Board::Update_select(int x, int y, int index, const Piece::Type & t)
 	cerr << "Updating " << x << "," << y << " " << grid[x][y].piece << " " << index << " " << t << "\n";
 	Square & s = grid[x][y];
 	
-	Clone_copy(s);
+	
 	
 	assert(s.piece != NULL);
 	assert(index >= 0 && index < 2);
@@ -237,7 +241,6 @@ void Board::Update_move(int x1, int y1, int x2, int y2)
 	Square & s1 = grid[x1][y1];
 	Square & s2 = grid[x2][y2];
 	
-	Clone_copy(s1);
 	
 
 	
@@ -255,11 +258,7 @@ void Board::Update_move(int x1, int y1, int x2, int y2)
 			}
 			++i;
 		}
-		while (i != p.end())
-		{
-			(*i)->piece_index -= 1;
-			++i;
-		}
+
 		Piece * k = king(s2.piece->colour);
 		if (k == s2.piece)
 		{
@@ -268,10 +267,8 @@ void Board::Update_move(int x1, int y1, int x2, int y2)
 			else
 				black_king = NULL;
 		}
-		if ((IsClone() && s2.piece == parent->grid[x2][y2].piece) == false)
-		{
-			delete s2.piece;
-		}
+		delete s2.piece;
+
 	}	
 
 	s1.piece->x = s2.x;
@@ -290,6 +287,7 @@ void Board::Update_move(int x1, int y1, int x2, int y2)
 void Board::Get_moves(Piece * p, vector<Square*> & v)
 {
 	assert(p->current_type != Piece::UNKNOWN);
+	
 	int x = p->x; int y = p->y;
 	if (p->current_type == Piece::KING)
 	{
@@ -480,24 +478,21 @@ Piece::Colour Piece::str2colour(const string & str)
 Piece * Piece::AddPiece(vector<Piece*> & v, int x, int y, const Piece::Colour & colour, const Piece::Type & t1, const Piece::Type & t2,
 			int type_index)
 {
-	Piece * p = new Piece(x,y,colour,t1, t2,type_index, v.size());
+	Piece * p = new Piece(x,y,colour,t1, t2,type_index);
 	v.push_back(p);
 	return p;
 }
 
 /**
- * @funct Clone_copy
- * @purpose If necessary, copy the piece in the square
- * @param s - The square
+ * @funct AddPiece
+ * @purpose Copy a Piece and add it to a vector
+ * @param v - The vector
+ * @param cpy - Piece to copy
+ * @returns Pointer to the new Piece
  */
-void Board::Clone_copy(Square & s)
+Piece * Piece::AddPiece(vector<Piece*> & v, const Piece & cpy)
 {
-	if (s.piece == NULL || !IsClone()) return;
-	if (parent->grid[s.x][s.y].piece == s.piece)
-	{
-		s.piece = new Piece(*(s.piece));
-		vector<Piece*> & v = pieces(s.piece->colour);
-		v[s.piece->piece_index] = s.piece;
-	}
-	
+	Piece * p = new Piece(cpy);
+	v.push_back(p);
+	return p;
 }

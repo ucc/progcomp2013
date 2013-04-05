@@ -45,14 +45,14 @@ class Piece
 		static const char * type2str(const Type & t);
 		
 		static Piece * AddPiece(std::vector<Piece*> & v, int x, int y, const Colour & colour, const Type & type1, const Type & type2, int type_index=-1);
+		static Piece * AddPiece(std::vector<Piece*> & v, const Piece & cpy);
 		
 	private:
 		friend class Board;
 		Piece(int x, int y, const Colour & colour, const Type & type1, const Type & type2
-			, int type_index, int new_piece_index); // constructor
+			, int type_index); // constructor
 		Piece(const Piece & cpy); // copy constructor
-		
-		int piece_index; // index of the piece in Board's pieces vector
+
 		
 
 };
@@ -111,8 +111,7 @@ class Board
 		// determine if position is on the board
 		bool Valid_position(int x, int y) {return (x >= 0 && x <= BOARD_WIDTH-1 && y >= 0 && y <= BOARD_HEIGHT-1);}
 		
-		bool IsClone() const {return parent != NULL;}
-		void Clone_copy(Square & s);
+
 
 	private:
 		Square grid[BOARD_WIDTH][BOARD_HEIGHT];
@@ -128,7 +127,7 @@ class Board
 		Piece * white_king;
 		Piece * black_king;
 		
-		Board * parent;
+		
 
 		// Add a move to the vector if it is valid
 		void Move(Piece * p, int x, int y, std::vector<Square*> & v);

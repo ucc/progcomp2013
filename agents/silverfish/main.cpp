@@ -9,6 +9,7 @@
 
 #include "silverfish.h"
 
+
 using namespace std;
 
 /**
@@ -20,6 +21,8 @@ using namespace std;
 int main(int argc, char ** argv)
 {
 	srand(time(NULL)); // seed random number generator
+	
+	
 
 	string colour; cin >> colour; // first read the colour of the agent
 

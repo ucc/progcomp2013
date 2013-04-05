@@ -11,7 +11,7 @@ BIN = silver
 
 
 $(BIN) : $(LINKOBJ)
-	$(CXX) -o $(BIN) $(LINKOBJ)
+	$(CXX) -o $(BIN) $(LINKOBJ) $(LIB)
 
 %.o : %.cpp
 	$(CXX) -c $<
