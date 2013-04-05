@@ -25,10 +25,10 @@ def make_player(name, colour):
 			return HumanPlayer(name, colour)
 		s = name[1:].split(":")
 		if s[0] == "network":
-			address = None
+			address = (None, 4562)
 			if len(s) > 1:
-				address = s[1]
-			return NetworkReceiver(colour, address)
+				address = (s[1], 4562)
+			return Network(colour, address, baseplayer = None)
 		if s[0] == "internal":
 
 			import inspect
@@ -218,30 +218,27 @@ def main(argv):
 		return 45
 
 
-	# Wrap NetworkSender players around original players if necessary
+	# Wrap Networks players around original players if necessary
 	for i in range(len(players)):
-		if isinstance(players[i], NetworkReceiver):
-			players[i].board = board # Network players need direct access to the board
+		if isinstance(players[i], Network) and players[i].baseplayer == None:
 			for j in range(len(players)):
-				if j == i:
+				if i == j:
 					continue
-				if isinstance(players[j], NetworkSender) or isinstance(players[j], NetworkReceiver):
-					continue
-				players[j] = NetworkSender(players[j], players[i].address)
-				players[j].board = board
-
-	# Connect the networked players
+					
+				port = players[i].address[1]
+				if players[j].colour == "black" and players[i].colour == "white":
+					pass
+				elif players[j].colour == "white" and players[i].colour == "black":
+					port -= 1
+				players[j] = Network(players[j].colour, (players[i].address[0], port), baseplayer = players[j])
+			
+			
 	for p in players:
-		if isinstance(p, NetworkSender) or isinstance(p, NetworkReceiver):
-			if graphics != None:
-				graphics.board.display_grid(graphics.window, graphics.grid_sz)
-				graphics.message("Connecting to " + p.colour + " player...")
-				
-			# Handle race condition by having clients wait longer than servers to connect
-			if p.address != None:
+		if isinstance(p, Network):
+			if p.address[0] != None:
 				time.sleep(0.2)
 			p.connect()
-
+				
 	
 	# If using windows, select won't work; use horrible TimeoutPlayer hack
 	if agent_timeout > 0:

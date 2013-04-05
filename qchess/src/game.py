@@ -24,8 +24,8 @@ class GameThread(StoppableThread):
 			
 			for p in self.players:
 				with self.lock:
-					if isinstance(p, NetworkSender):
-						self.state["turn"] = p.base_player # "turn" contains the player who's turn it is
+					if isinstance(p, Network) and p.baseplayer != None:
+						self.state["turn"] = p.baseplayer # "turn" contains the player who's turn it is
 					else:
 						self.state["turn"] = p
 				#try:
@@ -33,17 +33,15 @@ class GameThread(StoppableThread):
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
 						break
-				
-					if not (isinstance(p, Network) and p.server == False):
+						
+					if isinstance(p, Network) == False or p.server == True:
 						result = self.board.select(x, y, colour = p.colour)
 					else:
-						#debug(str(self) + " don't update local board")
-						result = ""
-					
-					result = p.update(result)
+						result = p.get_response()
+						self.board.update(result)
+						
 					for p2 in self.players:
-						if p2 != p:
-							result = p2.update(result) # Inform players of what happened
+						p2.update(result) # Inform players of what happened
 
 
 					log(result)

@@ -1131,42 +1131,98 @@ import select
 network_timeout_start = -1.0 # Timeout in seconds to wait for the start of a message
 network_timeout_delay = 1.0 # Maximum time between two characters being received
 
-class Network():
-	def __init__(self, colour, address = None):
+class Network(Player):
+	def __init__(self, colour, address = (None,4562), baseplayer = None):
+		
+		if baseplayer != None:
+			name = baseplayer.name + " --> @network"
+		else:
+			name = "<-- @network"
+		
+		
+				
+		Player.__init__(self, name, colour)
+		debug("Colour is " + str(self.colour))
+		
 		self.socket = socket.socket()
 		self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		self.baseplayer = baseplayer
 		#self.socket.setblocking(0)
 		
-		self.server = (address == None)
+		self.address = address
+		self.server = (address[0] == None)
 
-		if colour == "white":
-			self.port = 4562
-		else:
-			self.port = 4563
-
-		self.src = None
-
-	#	print str(self) + " listens on port " + str(self.port)
-
-		if address == None:
+		if self.colour == "black":
+			self.address = (self.address[0], self.address[1] + 1)
+				
+		debug(str(self) + ":"+str(self.address))
+		
+		self.board = None
+			
+			
+	def connect(self):	
+		if self.address[0] == None:
 			self.host = "0.0.0.0" #socket.gethostname() # Breaks things???
-			self.socket.bind((self.host, self.port))
+			self.socket.bind((self.host, self.address[1]))
 			self.socket.listen(5)	
 
-			self.src, self.address = self.socket.accept()
+			self.src, self.actual_address = self.socket.accept()
+			
 			self.src.send("ok\n")
-			if self.get_response() == "QUIT":
+			s = self.get_response()
+			if s == "QUIT":
 				self.src.close()
+				return
+			elif s != "ok":
+				self.src.close()
+				self.__init__(colour, (self.address[0], int(s)), baseplayer)
+				return
+			
 		else:
-			self.host = address
-			self.socket.connect((address, self.port))
+			self.socket.connect(self.address)
 			self.src = self.socket
 			self.src.send("ok\n")
-			if self.get_response() == "QUIT":
+			s = self.get_response()
+			if s == "QUIT":
 				self.src.close()
-			self.address = (address, self.port)
+				return
+			elif s != "ok":
+				self.src.close()
+				self.__init__(colour, (self.address[0], int(s)), baseplayer)
+				return
+			
+
+	def select(self):
+		if self.baseplayer != None:
+			s = self.baseplayer.select()
+			self.send_message(str(s[0]) + " " + str(s[1]))
+			return s
+		return map(int,self.get_response().split(" "))
+	
+	def get_move(self):
+		if self.baseplayer != None:
+			s = self.baseplayer.get_move()
+			self.send_message(str(s[0]) + " " + str(s[1]))
+			return s
+		return map(int,self.get_response().split(" "))
+	
+	def update(self, result):
+		if self.baseplayer != None:
+			result = self.baseplayer.update(result)
+			self.send_message(result)
+			return result
+		if self.server:
+			self.send_message(result)
+		else:
+			s = self.get_response()
+			if self.board != None:
+				self.board.update(s)
+			
+	def __str__(self):
+		return "Network<"+str(self.colour)+","+str(self.baseplayer)+">:"+str(self.address)
 
 	def get_response(self):
+		debug(str(self) + " get_response called...")
 		# Timeout the start of the message (first character)
 		if network_timeout_start > 0.0:
 			ready = select.select([self.src], [], [], network_timeout_start)[0]
@@ -1189,6 +1245,7 @@ class Network():
 			else:
 				raise Exception("UNRESPONSIVE")
 
+		debug(str(self) + " get_response returns " + s.strip(" \r\n"))
 		return s.strip(" \r\n")
 
 	def send_message(self,s):
@@ -1201,6 +1258,8 @@ class Network():
 			self.src.send(s + "\n")
 		else:
 			raise Exception("UNRESPONSIVE")
+		
+		debug(str(self) + " send_message sent " + s)
 
 	def check_quit(self, s):
 		s = s.split(" ")
@@ -1209,153 +1268,19 @@ class Network():
 				game.final_result = " ".join(s[1:]) + " " + str(opponent(self.colour))
 			game.stop()
 			return True
-
-
-		
-
-class NetworkSender(Player,Network):
-	def __init__(self, base_player, address = None):
-		self.base_player = base_player
-		Player.__init__(self, base_player.name, base_player.colour)
-
-		self.address = address
-
-	def connect(self):
-		nAttempts=3
-		for i in range(nAttempts):
-			try:
-				Network.__init__(self, self.colour, self.address)
-				debug(str(self) +" connected to " + str(self.address))
-				return
-			except Exception, e:
-				debug(str(self) +" attempt " + str(i) + ": " +  str(e.message))
-				
-		raise Exception("NETWORK - Can't connect to " + str(self.address))
-
-
-	def select(self):
-		[x,y] = self.base_player.select()
-		choice = self.board.grid[x][y]
-		s = str(x) + " " + str(y)
-		#debug(str(self) + " sends: " + str(s))
-		self.send_message(s)
-		return [x,y]
-
-	def get_move(self):
-		[x,y] = self.base_player.get_move()
-		s = str(x) + " " + str(y)
-		#debug(str(self) + " sends: " + str(s))
-		self.send_message(s)
-		return [x,y]
-
-	def update(self, s):
-		
-		self.base_player.update(s)
-		if self.server == True:
-			#debug(str(self) + " sends: " + str(s))
-			self.send_message(s)
-		return s
-		
-		s = s.split(" ")
-		[x,y] = map(int, s[0:2])
-		selected = self.board.grid[x][y]
-		if selected != None and selected.colour == self.colour and len(s) > 2 and not "->" in s:
-			s = " ".join(s[0:3])
-			for i in range(2):
-				if selected.types[i][0] != '?':
-					s += " " + str(selected.types[i])
-				else:
-					s += " unknown"
-			#debug(str(self) +" sending: " + str(s))
-			self.send_message(s)
-				
-
-	def quit(self, final_result):
-		self.base_player.quit(final_result)
-		#self.src.send("QUIT " + str(final_result) + "\n")
-		self.src.close()
-		
-	def __str__(self):
-		s = "NetworkSender:"
-		if self.server:
-			s += "server"
-		else:
-			s += "client"
-		s += ":"+str(self.address)
-		return s
-
-
-class NetworkReceiver(Player,Network):
-	def __init__(self, colour, address=None):
-		
-		s = "@network"
-		if address != None:
-			s += ":"+str(address)
-		Player.__init__(self, s, colour)
-
-		self.address = address
-
-		self.board = None
-
-
-	def connect(self):
-		nAttempts=3
-		for i in range(nAttempts):
-			try:
-				Network.__init__(self, self.colour, self.address)
-				debug(str(self) +" connected to " + str(self.address))
-				return
-			except Exception, e:
-				debug(str(self) +" attempt " + str(i) + ": " +  str(e.message))
-				
-		raise Exception("NETWORK - Can't connect to " + str(self.address))
 			
+	def quit(self, result):
+		if self.baseplayer != None:
+			self.send_message("QUIT")
 			
+		with game.lock:
+			game.final_result = result
+		game.stop()	
 
-	def select(self):
-		
-		s = self.get_response()
-		#debug(str(self) +".select reads: " + str(s))
-		[x,y] = map(int,s.split(" "))
-		if x == -1 and y == -1:
-			#print str(self) + ".select quits the game"
-			with game.lock:
-				game.final_state = "network terminated " + self.colour
-			game.stop()
-		return [x,y]
-	def get_move(self):
-		s = self.get_response()
-		#debug(str(self) +".get_move reads: " + str(s))
-		[x,y] = map(int,s.split(" "))
-		if x == -1 and y == -1:
-			#print str(self) + ".get_move quits the game"
-			with game.lock:
-				game.final_state = "network terminated " + self.colour
-			game.stop()
-		return [x,y]
 
-	def update(self, result):
-		if self.server == True:
-			return result
-		s = self.get_response()
-		#debug(str(self) + ".update reads: " + str(s))
-		if not "->" in s.split(" "):
-			self.board.update(s, sanity=False)
-		return s
-		
 
-	def quit(self, final_result):
-		self.src.close()
+
 		
-	def __str__(self):
-		s = "NetworkReceiver:"
-		if self.server:
-			s += "server"
-		else:
-			s += "client"
-		s += ":"+str(self.address)
-		return s
-	
 # --- network.py --- #
 import threading
 
@@ -1583,8 +1508,8 @@ class GameThread(StoppableThread):
 			
 			for p in self.players:
 				with self.lock:
-					if isinstance(p, NetworkSender):
-						self.state["turn"] = p.base_player # "turn" contains the player who's turn it is
+					if isinstance(p, Network) and p.baseplayer != None:
+						self.state["turn"] = p.baseplayer # "turn" contains the player who's turn it is
 					else:
 						self.state["turn"] = p
 				#try:
@@ -1592,17 +1517,15 @@ class GameThread(StoppableThread):
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
 						break
-				
-					if not (isinstance(p, Network) and p.server == False):
+						
+					if isinstance(p, Network) == False or p.server == True:
 						result = self.board.select(x, y, colour = p.colour)
 					else:
-						#debug(str(self) + " don't update local board")
-						result = ""
-					
-					result = p.update(result)
+						result = p.get_response()
+						self.board.update(result)
+						
 					for p2 in self.players:
-						if p2 != p:
-							result = p2.update(result) # Inform players of what happened
+						p2.update(result) # Inform players of what happened
 
 
 					log(result)
@@ -2408,10 +2331,10 @@ def make_player(name, colour):
 			return HumanPlayer(name, colour)
 		s = name[1:].split(":")
 		if s[0] == "network":
-			address = None
+			address = (None, 4562)
 			if len(s) > 1:
-				address = s[1]
-			return NetworkReceiver(colour, address)
+				address = (s[1], 4562)
+			return Network(colour, address, baseplayer = None)
 		if s[0] == "internal":
 
 			import inspect
@@ -2601,30 +2524,27 @@ def main(argv):
 		return 45
 
 
-	# Wrap NetworkSender players around original players if necessary
+	# Wrap Networks players around original players if necessary
 	for i in range(len(players)):
-		if isinstance(players[i], NetworkReceiver):
-			players[i].board = board # Network players need direct access to the board
+		if isinstance(players[i], Network) and players[i].baseplayer == None:
 			for j in range(len(players)):
-				if j == i:
+				if i == j:
 					continue
-				if isinstance(players[j], NetworkSender) or isinstance(players[j], NetworkReceiver):
-					continue
-				players[j] = NetworkSender(players[j], players[i].address)
-				players[j].board = board
-
-	# Connect the networked players
+					
+				port = players[i].address[1]
+				if players[j].colour == "black" and players[i].colour == "white":
+					pass
+				elif players[j].colour == "white" and players[i].colour == "black":
+					port -= 1
+				players[j] = Network(players[j].colour, (players[i].address[0], port), baseplayer = players[j])
+			
+			
 	for p in players:
-		if isinstance(p, NetworkSender) or isinstance(p, NetworkReceiver):
-			if graphics != None:
-				graphics.board.display_grid(graphics.window, graphics.grid_sz)
-				graphics.message("Connecting to " + p.colour + " player...")
-				
-			# Handle race condition by having clients wait longer than servers to connect
-			if p.address != None:
+		if isinstance(p, Network):
+			if p.address[0] != None:
 				time.sleep(0.2)
 			p.connect()
-
+				
 	
 	# If using windows, select won't work; use horrible TimeoutPlayer hack
 	if agent_timeout > 0:
@@ -2691,4 +2611,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Tue Apr  2 15:05:07 WST 2013
+# EOF - created from make on Fri Apr  5 14:17:50 WST 2013
