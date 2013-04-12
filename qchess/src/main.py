@@ -25,10 +25,18 @@ def make_player(name, colour):
 			return HumanPlayer(name, colour)
 		s = name[1:].split(":")
 		if s[0] == "network":
-			address = (None, 4562)
+			ip = None
+			port = 4562
 			if len(s) > 1:
-				address = (s[1], 4562)
-			return Network(colour, address, baseplayer = None)
+				ip = s[1]
+				
+			if ip == None:
+				if colour == "black":
+					port = 4563
+			elif colour == "white":
+				port = 4563
+						
+			return NetworkPlayer(colour, Network((ip, port)), None)
 		if s[0] == "internal":
 
 			import inspect
@@ -217,27 +225,22 @@ def main(argv):
 		sys.stderr.write(sys.argv[0] + " : Graphics window closed before players chosen\n")
 		return 45
 
-
-	# Wrap Networks players around original players if necessary
-	for i in range(len(players)):
-		if isinstance(players[i], Network) and players[i].baseplayer == None:
-			for j in range(len(players)):
-				if i == j:
+	old = players[:]
+	for p in old:
+		if isinstance(p, NetworkPlayer):
+			for i in range(len(old)):
+				if old[i] == p or isinstance(old[i], NetworkPlayer):
 					continue
-					
-				port = players[i].address[1]
-				if players[j].colour == "black" and players[i].colour == "white":
-					pass
-				elif players[j].colour == "white" and players[i].colour == "black":
-					port -= 1
-				players[j] = Network(players[j].colour, (players[i].address[0], port), baseplayer = players[j])
-			
-			
+				players[i] = NetworkPlayer(old[i].colour, p.network, old[i])
+		
 	for p in players:
-		if isinstance(p, Network):
-			if p.address[0] != None:
-				time.sleep(0.2)
-			p.connect()
+		debug(str(p))
+		if isinstance(p, NetworkPlayer):
+			p.board = game.board
+			if not p.network.connected:
+				if not p.network.server:
+					time.sleep(0.2)
+				p.network.connect()
 				
 	
 	# If using windows, select won't work; use horrible TimeoutPlayer hack

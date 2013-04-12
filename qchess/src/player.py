@@ -20,6 +20,12 @@ class Player():
 
 	def reset_board(self, s):
 		pass
+	
+	def __str__(self):
+		return self.name + "<"+str(self.colour)+">"
+
+	def base_player(self):
+		return self
 
 # Player that runs from another process
 class ExternalAgent(Player):

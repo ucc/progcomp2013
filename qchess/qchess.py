@@ -272,7 +272,8 @@ class Board():
 
 	# Update the board when a piece has been selected
 	# "type" is apparently reserved, so I'll use "state"
-	def update_select(self, x, y, type_index, state, sanity=True):
+	def update_select(self, x, y, type_index, state, sanity=True, deselect=True):
+		debug(str(self) + " update_select called")
 		piece = self.grid[x][y]
 		if piece.types[type_index] == "unknown":
 			if not state in self.unrevealed_types[piece.colour].keys() and sanity == True:
@@ -284,7 +285,7 @@ class Board():
 		piece.types[type_index] = state
 		piece.current_type = state
 
-		if len(self.possible_moves(piece)) <= 0:
+		if deselect == True and len(self.possible_moves(piece)) <= 0:
 			piece.deselect() # Piece can't move; deselect it
 			
 		# Piece needs to recalculate moves
@@ -292,7 +293,7 @@ class Board():
 		
 	# Update the board when a piece has been moved
 	def update_move(self, x, y, x2, y2, sanity=True):
-				
+		debug(str(self) + " update_move called \""+str(x)+ " " + str(y) + " -> " + str(x2) + " " + str(y2) + "\"")	
 		piece = self.grid[x][y]
 		#print "Moving " + str(x) + "," + str(y) + " to " + str(x2) + "," + str(y2) + "; possible_moves are " + str(self.possible_moves(piece))
 		
@@ -331,8 +332,8 @@ class Board():
 
 	# Update the board from a string
 	# Guesses what to do based on the format of the string
-	def update(self, result, sanity=True):
-		#print "Update called with \"" + str(result) + "\""
+	def update(self, result, sanity=True, deselect=True):
+		debug(str(self) + " update called \""+str(result)+"\"")
 		# String always starts with 'x y'
 		try:
 			s = result.split(" ")
@@ -342,7 +343,7 @@ class Board():
 
 		piece = self.grid[x][y]
 		if piece == None and sanity == True:
-			raise Exception("EMPTY")
+			raise Exception("EMPTY " + str(x) + " " + str(y))
 
 		# If a piece is being moved, the third token is '->'
 		# We could get away with just using four integers, but that wouldn't look as cool
@@ -366,7 +367,7 @@ class Board():
 
 
 			# Select the piece
-			self.update_select(x, y, type_index, state, sanity)
+			self.update_select(x, y, type_index, state, sanity=sanity, deselect=deselect)
 
 		return result
 
@@ -473,7 +474,7 @@ class Board():
 
 		
 		if p.current_type == "unknown":
-			raise Exception("SANITY: Piece state unknown")
+			raise Exception("SANITY: Unknown state for piece: "+str(p))
 			# The below commented out code causes things to break badly
 			#for t in p.types:
 			#	if t == "unknown":
@@ -636,6 +637,12 @@ class Player():
 
 	def reset_board(self, s):
 		pass
+	
+	def __str__(self):
+		return self.name + "<"+str(self.colour)+">"
+
+	def base_player(self):
+		return self
 
 # Player that runs from another process
 class ExternalAgent(Player):
@@ -1131,36 +1138,91 @@ import select
 network_timeout_start = -1.0 # Timeout in seconds to wait for the start of a message
 network_timeout_delay = 1.0 # Maximum time between two characters being received
 
-class Network(Player):
-	def __init__(self, colour, address = (None,4562), baseplayer = None):
+class NetworkPlayer(Player):
+	def __init__(self, colour, network, player):
+		Player.__init__(self, "@network:"+str(network.address), colour) 
+		self.player = player
+		self.network = network
 		
-		if baseplayer != None:
-			name = baseplayer.name + " --> @network"
+	def __str__(self):
+		return "NetworkPlayer<"+str(self.colour)+","+str(self.player)+">"
+		
+	def select(self):
+		debug(str(self) + " select called")
+		if self.player != None:
+			s = self.player.select()
+			self.send_message(str(s[0]) + " " + str(s[1]))
 		else:
-			name = "<-- @network"
+			s = map(int, self.get_response().split(" "))
+			for p in game.players:
+				if p != self and isinstance(p, NetworkPlayer) and p.player == None:
+					p.network.send_message(str(s[0]) + " " + str(s[1]))
+		return s
+	
+	def send_message(self, message):
+		debug(str(self) + " send_message(\""+str(message)+"\") called")
+		self.network.send_message(message)
+		
+	def get_response(self):
+		debug(str(self) + " get_response() called")
+		s = self.network.get_response()
+		debug(str(self) + " get_response() returns \""+str(s)+"\"")
+		return s
+			
+			
+	def get_move(self):
+		debug(str(self) + " get_move called")
+		if self.player != None:
+			s = self.player.get_move()
+			self.send_message(str(s[0]) + " " + str(s[1]))
+		else:
+			s = map(int, self.get_response().split(" "))
+			for p in game.players:
+				if p != self and isinstance(p, NetworkPlayer) and p.player == None:
+					p.network.send_message(str(s[0]) + " " + str(s[1]))
+		return s
+	
+	def update(self, result):
+		debug(str(self) + " update(\""+str(result)+"\") called")
+		if self.network.server == True:
+			if self.player == None:
+				self.send_message(result)
+		elif self.player != None:
+			result = self.get_response()
+			self.board.update(result, deselect=False)
 		
 		
-				
-		Player.__init__(self, name, colour)
-		debug("Colour is " + str(self.colour))
 		
+		if self.player != None:
+			result = self.player.update(result)
+			
+		return result
+		
+		
+	
+	def base_player(self):
+		if self.player == None:
+			return self
+		else:
+			return self.player.base_player()
+		
+	def quit(self, result):
+		pass
+
+class Network():
+	def __init__(self, address = (None,4562)):
 		self.socket = socket.socket()
 		self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-		self.baseplayer = baseplayer
 		#self.socket.setblocking(0)
-		
 		self.address = address
 		self.server = (address[0] == None)
-
-		if self.colour == "black":
-			self.address = (self.address[0], self.address[1] + 1)
-				
-		debug(str(self) + ":"+str(self.address))
 		
-		self.board = None
-			
+		
+		self.connected = False
 			
 	def connect(self):	
+		debug(str(self) + "Tries to connect")
+		self.connected = True
 		if self.address[0] == None:
 			self.host = "0.0.0.0" #socket.gethostname() # Breaks things???
 			self.socket.bind((self.host, self.address[1]))
@@ -1179,6 +1241,7 @@ class Network(Player):
 				return
 			
 		else:
+			time.sleep(0.3)
 			self.socket.connect(self.address)
 			self.src = self.socket
 			self.src.send("ok\n")
@@ -1192,37 +1255,12 @@ class Network(Player):
 				return
 			
 
-	def select(self):
-		if self.baseplayer != None:
-			s = self.baseplayer.select()
-			self.send_message(str(s[0]) + " " + str(s[1]))
-			return s
-		return map(int,self.get_response().split(" "))
-	
-	def get_move(self):
-		if self.baseplayer != None:
-			s = self.baseplayer.get_move()
-			self.send_message(str(s[0]) + " " + str(s[1]))
-			return s
-		return map(int,self.get_response().split(" "))
-	
-	def update(self, result):
-		if self.baseplayer != None:
-			result = self.baseplayer.update(result)
-			self.send_message(result)
-			return result
-		if self.server:
-			self.send_message(result)
-		else:
-			s = self.get_response()
-			if self.board != None:
-				self.board.update(s)
-			
+		
 	def __str__(self):
-		return "Network<"+str(self.colour)+","+str(self.baseplayer)+">:"+str(self.address)
+		return "@network:"+str(self.address)
 
 	def get_response(self):
-		debug(str(self) + " get_response called...")
+		
 		# Timeout the start of the message (first character)
 		if network_timeout_start > 0.0:
 			ready = select.select([self.src], [], [], network_timeout_start)[0]
@@ -1245,7 +1283,7 @@ class Network(Player):
 			else:
 				raise Exception("UNRESPONSIVE")
 
-		debug(str(self) + " get_response returns " + s.strip(" \r\n"))
+		
 		return s.strip(" \r\n")
 
 	def send_message(self,s):
@@ -1259,26 +1297,7 @@ class Network(Player):
 		else:
 			raise Exception("UNRESPONSIVE")
 		
-		debug(str(self) + " send_message sent " + s)
-
-	def check_quit(self, s):
-		s = s.split(" ")
-		if s[0] == "QUIT":
-			with game.lock:
-				game.final_result = " ".join(s[1:]) + " " + str(opponent(self.colour))
-			game.stop()
-			return True
-			
-	def quit(self, result):
-		if self.baseplayer != None:
-			self.send_message("QUIT")
-			
-		with game.lock:
-			game.final_result = result
-		game.stop()	
-
-
-
+		
 
 		
 # --- network.py --- #
@@ -1489,7 +1508,7 @@ def log_init(board, players):
 
 # A thread that runs the game
 class GameThread(StoppableThread):
-	def __init__(self, board, players):
+	def __init__(self, board, players, server = True):
 		StoppableThread.__init__(self)
 		self.board = board
 		self.players = players
@@ -1498,6 +1517,10 @@ class GameThread(StoppableThread):
 		self.lock = threading.RLock() #lock for access of self.state
 		self.cond = threading.Condition() # conditional for some reason, I forgot
 		self.final_result = ""
+		self.server = server
+		
+		
+			
 		
 		
 
@@ -1508,24 +1531,26 @@ class GameThread(StoppableThread):
 			
 			for p in self.players:
 				with self.lock:
-					if isinstance(p, Network) and p.baseplayer != None:
-						self.state["turn"] = p.baseplayer # "turn" contains the player who's turn it is
-					else:
-						self.state["turn"] = p
+					self.state["turn"] = p.base_player()
 				#try:
 				if True:
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
 						break
 						
-					if isinstance(p, Network) == False or p.server == True:
-						result = self.board.select(x, y, colour = p.colour)
+					if isinstance(p, NetworkPlayer):
+						if p.network.server == True:
+							result = self.board.select(x, y, colour = p.colour)
+						else:
+							result = None
+							
 					else:
-						result = p.get_response()
-						self.board.update(result)
-						
+						result = self.board.select(x, y, colour = p.colour)
+					
+					result = p.update(result)					
 					for p2 in self.players:
-						p2.update(result) # Inform players of what happened
+						if p2 != p:
+							p2.update(result) # Inform players of what happened
 
 
 					log(result)
@@ -1556,14 +1581,25 @@ class GameThread(StoppableThread):
 
 					if self.stopped():
 						break
-
-					result = str(x) + " " + str(y) + " -> " + str(x2) + " " + str(y2)
+					
+					if isinstance(p, NetworkPlayer):
+						if p.network.server == True:
+							result = str(x) + " " + str(y) + " -> " + str(x2) + " " + str(y2)
+							self.board.update_move(x, y, x2, y2)
+						else:
+							result = None
+							
+					else:
+						result = str(x) + " " + str(y) + " -> " + str(x2) + " " + str(y2)
+						self.board.update_move(x, y, x2, y2)
+					
+					result = p.update(result)				
+					for p2 in self.players:
+						if p2 != p:
+							p2.update(result) # Inform players of what happened
+											
 					log(result)
 
-					self.board.update_move(x, y, x2, y2)
-					
-					for p2 in self.players:
-						p2.update(result) # Inform players of what happened
 
 										
 
@@ -2331,10 +2367,18 @@ def make_player(name, colour):
 			return HumanPlayer(name, colour)
 		s = name[1:].split(":")
 		if s[0] == "network":
-			address = (None, 4562)
+			ip = None
+			port = 4562
 			if len(s) > 1:
-				address = (s[1], 4562)
-			return Network(colour, address, baseplayer = None)
+				ip = s[1]
+				
+			if ip == None:
+				if colour == "black":
+					port = 4563
+			elif colour == "white":
+				port = 4563
+						
+			return NetworkPlayer(colour, Network((ip, port)), None)
 		if s[0] == "internal":
 
 			import inspect
@@ -2523,27 +2567,22 @@ def main(argv):
 		sys.stderr.write(sys.argv[0] + " : Graphics window closed before players chosen\n")
 		return 45
 
-
-	# Wrap Networks players around original players if necessary
-	for i in range(len(players)):
-		if isinstance(players[i], Network) and players[i].baseplayer == None:
-			for j in range(len(players)):
-				if i == j:
+	old = players[:]
+	for p in old:
+		if isinstance(p, NetworkPlayer):
+			for i in range(len(old)):
+				if old[i] == p or isinstance(old[i], NetworkPlayer):
 					continue
-					
-				port = players[i].address[1]
-				if players[j].colour == "black" and players[i].colour == "white":
-					pass
-				elif players[j].colour == "white" and players[i].colour == "black":
-					port -= 1
-				players[j] = Network(players[j].colour, (players[i].address[0], port), baseplayer = players[j])
-			
-			
+				players[i] = NetworkPlayer(old[i].colour, p.network, old[i])
+		
 	for p in players:
-		if isinstance(p, Network):
-			if p.address[0] != None:
-				time.sleep(0.2)
-			p.connect()
+		debug(str(p))
+		if isinstance(p, NetworkPlayer):
+			p.board = game.board
+			if not p.network.connected:
+				if not p.network.server:
+					time.sleep(0.2)
+				p.network.connect()
 				
 	
 	# If using windows, select won't work; use horrible TimeoutPlayer hack
@@ -2611,4 +2650,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Fri Apr  5 14:17:50 WST 2013
+# EOF - created from make on Fri Apr 12 17:07:44 WST 2013

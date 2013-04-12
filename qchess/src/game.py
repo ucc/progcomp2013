@@ -5,7 +5,7 @@
 
 # A thread that runs the game
 class GameThread(StoppableThread):
-	def __init__(self, board, players):
+	def __init__(self, board, players, server = True):
 		StoppableThread.__init__(self)
 		self.board = board
 		self.players = players
@@ -14,6 +14,10 @@ class GameThread(StoppableThread):
 		self.lock = threading.RLock() #lock for access of self.state
 		self.cond = threading.Condition() # conditional for some reason, I forgot
 		self.final_result = ""
+		self.server = server
+		
+		
+			
 		
 		
 
@@ -24,24 +28,26 @@ class GameThread(StoppableThread):
 			
 			for p in self.players:
 				with self.lock:
-					if isinstance(p, Network) and p.baseplayer != None:
-						self.state["turn"] = p.baseplayer # "turn" contains the player who's turn it is
-					else:
-						self.state["turn"] = p
+					self.state["turn"] = p.base_player()
 				#try:
 				if True:
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
 						break
 						
-					if isinstance(p, Network) == False or p.server == True:
-						result = self.board.select(x, y, colour = p.colour)
+					if isinstance(p, NetworkPlayer):
+						if p.network.server == True:
+							result = self.board.select(x, y, colour = p.colour)
+						else:
+							result = None
+							
 					else:
-						result = p.get_response()
-						self.board.update(result)
-						
+						result = self.board.select(x, y, colour = p.colour)
+					
+					result = p.update(result)					
 					for p2 in self.players:
-						p2.update(result) # Inform players of what happened
+						if p2 != p:
+							p2.update(result) # Inform players of what happened
 
 
 					log(result)
@@ -72,14 +78,25 @@ class GameThread(StoppableThread):
 
 					if self.stopped():
 						break
-
-					result = str(x) + " " + str(y) + " -> " + str(x2) + " " + str(y2)
+					
+					if isinstance(p, NetworkPlayer):
+						if p.network.server == True:
+							result = str(x) + " " + str(y) + " -> " + str(x2) + " " + str(y2)
+							self.board.update_move(x, y, x2, y2)
+						else:
+							result = None
+							
+					else:
+						result = str(x) + " " + str(y) + " -> " + str(x2) + " " + str(y2)
+						self.board.update_move(x, y, x2, y2)
+					
+					result = p.update(result)				
+					for p2 in self.players:
+						if p2 != p:
+							p2.update(result) # Inform players of what happened
+											
 					log(result)
 
-					self.board.update_move(x, y, x2, y2)
-					
-					for p2 in self.players:
-						p2.update(result) # Inform players of what happened
 
 										
 

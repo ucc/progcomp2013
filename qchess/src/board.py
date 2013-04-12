@@ -172,7 +172,8 @@ class Board():
 
 	# Update the board when a piece has been selected
 	# "type" is apparently reserved, so I'll use "state"
-	def update_select(self, x, y, type_index, state, sanity=True):
+	def update_select(self, x, y, type_index, state, sanity=True, deselect=True):
+		debug(str(self) + " update_select called")
 		piece = self.grid[x][y]
 		if piece.types[type_index] == "unknown":
 			if not state in self.unrevealed_types[piece.colour].keys() and sanity == True:
@@ -184,7 +185,7 @@ class Board():
 		piece.types[type_index] = state
 		piece.current_type = state
 
-		if len(self.possible_moves(piece)) <= 0:
+		if deselect == True and len(self.possible_moves(piece)) <= 0:
 			piece.deselect() # Piece can't move; deselect it
 			
 		# Piece needs to recalculate moves
@@ -192,7 +193,7 @@ class Board():
 		
 	# Update the board when a piece has been moved
 	def update_move(self, x, y, x2, y2, sanity=True):
-				
+		debug(str(self) + " update_move called \""+str(x)+ " " + str(y) + " -> " + str(x2) + " " + str(y2) + "\"")	
 		piece = self.grid[x][y]
 		#print "Moving " + str(x) + "," + str(y) + " to " + str(x2) + "," + str(y2) + "; possible_moves are " + str(self.possible_moves(piece))
 		
@@ -231,8 +232,8 @@ class Board():
 
 	# Update the board from a string
 	# Guesses what to do based on the format of the string
-	def update(self, result, sanity=True):
-		#print "Update called with \"" + str(result) + "\""
+	def update(self, result, sanity=True, deselect=True):
+		debug(str(self) + " update called \""+str(result)+"\"")
 		# String always starts with 'x y'
 		try:
 			s = result.split(" ")
@@ -242,7 +243,7 @@ class Board():
 
 		piece = self.grid[x][y]
 		if piece == None and sanity == True:
-			raise Exception("EMPTY")
+			raise Exception("EMPTY " + str(x) + " " + str(y))
 
 		# If a piece is being moved, the third token is '->'
 		# We could get away with just using four integers, but that wouldn't look as cool
@@ -266,7 +267,7 @@ class Board():
 
 
 			# Select the piece
-			self.update_select(x, y, type_index, state, sanity)
+			self.update_select(x, y, type_index, state, sanity=sanity, deselect=deselect)
 
 		return result
 
@@ -373,7 +374,7 @@ class Board():
 
 		
 		if p.current_type == "unknown":
-			raise Exception("SANITY: Piece state unknown")
+			raise Exception("SANITY: Unknown state for piece: "+str(p))
 			# The below commented out code causes things to break badly
 			#for t in p.types:
 			#	if t == "unknown":
