@@ -367,7 +367,18 @@ class GraphicsThread(StoppableThread):
 						#print "Reject " + str(i) + str(event.pos) + " vs " + str(t)
 		
 
-
+	# Function to choose between dedicated server or normal play
+	def SelectServer(self):
+	
+		choice = self.SelectButton(["Normal", "Join Eigenserver"],prompt="Game type?")
+		if choice == 0:
+			return None
+		choice = self.SelectButton(["progcomp.ucc", "other"], prompt="Address?")
+		if choice == 0:
+			return "progcomp.ucc.asn.au"
+		else:
+			return self.getstr(prompt = "Enter address:")
+			
 	# Function to pick players in a nice GUI way
 	def SelectPlayers(self, players = []):
 

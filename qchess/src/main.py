@@ -83,6 +83,9 @@ def main(argv):
 	global always_reveal_states
 	global sleep_timeout
 
+
+	server_addr = None
+
 	max_moves = None
 	src_file = None
 	
@@ -140,22 +143,25 @@ def main(argv):
 					if len(f.split(":")) == 2:
 						max_moves = int(f.split(":")[1])
 						
-		elif (arg[1] == '-' and arg[2:] == "server"):
-			if len(arg[2:].split("=") <= 1):
-				dedicated_server()
+		elif (arg[1] == '-' and arg[2:].split("=")[0] == "server"):
+			#debug("Server: " + str(arg[2:]))
+			if len(arg[2:].split("=")) <= 1:
+				server_addr = True
 			else:
-				client(arg[2:].split("=")[1])
-			sys.exit(0)
+				server_addr = arg[2:].split("=")[1]
+			
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
 			# Log file
 			if len(arg[2:].split("=")) == 1:
-				log_files.append(LogFile(sys.stdout))
+				log_files.append(LogFile(sys.stdout,""))
 			else:
 				f = arg[2:].split("=")[1]
-				if f[0] == '@':
+				if f == "":
+					log_files.append(LogFile(sys.stdout, ""))
+				elif f[0] == '@':
 					log_files.append(ShortLog(f[1:]))
 				else:
-					log_files.append(LogFile(open(f, "w", 0)))
+					log_files.append(LogFile(open(f, "w", 0), f))
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "delay"):
 			# Delay
 			if len(arg[2:].split("=")) == 1:
@@ -180,7 +186,17 @@ def main(argv):
 			# Help
 			os.system("less data/help.txt") # The best help function
 			return 0
-
+		
+	# Dedicated server?
+	
+	#debug("server_addr = " + str(server_addr))
+	
+	if server_addr != None:
+		if server_addr == True:
+			return dedicated_server()
+		else:
+			return client(server_addr)
+		
 
 	# Create the board
 	
@@ -225,6 +241,14 @@ def main(argv):
 	# If there are no players listed, display a nice pretty menu
 	if len(players) != 2:
 		if graphics != None:
+			
+			server_addr = graphics.SelectServer()
+			if server_addr != None:
+				if server_addr == True:
+					return dedicated_server()
+				else:
+					return client(server_addr)	
+			
 			players = graphics.SelectPlayers(players)
 		else:
 			sys.stderr.write(sys.argv[0] + " : Usage " + sys.argv[0] + " white black\n")
@@ -244,7 +268,7 @@ def main(argv):
 				players[i] = NetworkPlayer(old[i].colour, p.network, old[i])
 		
 	for p in players:
-		debug(str(p))
+		#debug(str(p))
 		if isinstance(p, NetworkPlayer):
 			p.board = game.board
 			if not p.network.connected:
@@ -309,8 +333,9 @@ def main(argv):
 
 # This is how python does a main() function...
 if __name__ == "__main__":
+	retcode = 0
 	try:
-		sys.exit(main(sys.argv))
+		retcode = main(sys.argv)
 	except KeyboardInterrupt:
 		sys.stderr.write(sys.argv[0] + " : Got KeyboardInterrupt. Stopping everything\n")
 		if isinstance(graphics, StoppableThread):
@@ -321,6 +346,19 @@ if __name__ == "__main__":
 			game.stop()
 			if game.is_alive():
 				game.join()
-
-		sys.exit(102)
+		retcode = 102
+	#except Exception, e:
+	#	sys.stderr.write(sys.argv[0] + " : " + e.message + "\n")
+	#	retcode = 103	
+		
+	try:
+    		sys.stdout.close()
+	except:
+    		pass
+	try:
+    		sys.stderr.close()
+	except:
+    		pass
+	sys.exit(retcode)
+		
 

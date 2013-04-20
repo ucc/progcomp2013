@@ -14,7 +14,7 @@ class NetworkPlayer(Player):
 		return "NetworkPlayer<"+str(self.colour)+","+str(self.player)+">"
 		
 	def select(self):
-		debug(str(self) + " select called")
+		#debug(str(self) + " select called")
 		if self.player != None:
 			s = self.player.select()
 			self.send_message(str(s[0]) + " " + str(s[1]))
@@ -23,21 +23,24 @@ class NetworkPlayer(Player):
 			for p in game.players:
 				if p != self and isinstance(p, NetworkPlayer) and p.player == None:
 					p.network.send_message(str(s[0]) + " " + str(s[1]))
+		if s == [-1,-1]:
+			game.final_result = "network terminate"
+			game.stop()
 		return s
 	
 	def send_message(self, message):
-		debug(str(self) + " send_message(\""+str(message)+"\") called")
+		#debug(str(self) + " send_message(\""+str(message)+"\") called")
 		self.network.send_message(message)
 		
 	def get_response(self):
-		debug(str(self) + " get_response() called")
+		#debug(str(self) + " get_response() called")
 		s = self.network.get_response()
-		debug(str(self) + " get_response() returns \""+str(s)+"\"")
+		#debug(str(self) + " get_response() returns \""+str(s)+"\"")
 		return s
 			
 			
 	def get_move(self):
-		debug(str(self) + " get_move called")
+		#debug(str(self) + " get_move called")
 		if self.player != None:
 			s = self.player.get_move()
 			self.send_message(str(s[0]) + " " + str(s[1]))
@@ -46,15 +49,23 @@ class NetworkPlayer(Player):
 			for p in game.players:
 				if p != self and isinstance(p, NetworkPlayer) and p.player == None:
 					p.network.send_message(str(s[0]) + " " + str(s[1]))
+					
+		if s == [-1,-1]:
+			game.final_result = "network terminate"
+			game.stop()
 		return s
 	
 	def update(self, result):
-		debug(str(self) + " update(\""+str(result)+"\") called")
+		#debug(str(self) + " update(\""+str(result)+"\") called")
 		if self.network.server == True:
 			if self.player == None:
 				self.send_message(result)
 		elif self.player != None:
 			result = self.get_response()
+			if result == "-1 -1":
+				game.final_result = "network terminate"
+				game.stop()
+				return "-1 -1"
 			self.board.update(result, deselect=False)
 		
 		
@@ -73,7 +84,10 @@ class NetworkPlayer(Player):
 			return self.player.base_player()
 		
 	def quit(self, result):
-		pass
+		try:
+			self.send_message("-1 -1")
+		except:
+			pass
 
 class Network():
 	def __init__(self, address = (None,4562)):
@@ -87,7 +101,7 @@ class Network():
 		self.connected = False
 			
 	def connect(self):	
-		debug(str(self) + "Tries to connect")
+		#debug(str(self) + "Tries to connect")
 		self.connected = True
 		if self.address[0] == None:
 			self.host = "0.0.0.0" #socket.gethostname() # Breaks things???

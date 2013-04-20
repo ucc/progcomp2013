@@ -33,6 +33,7 @@ class GameThread(StoppableThread):
 				if True:
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
+						#debug("Quitting in select")
 						break
 						
 					if isinstance(p, NetworkPlayer):
@@ -44,10 +45,18 @@ class GameThread(StoppableThread):
 					else:
 						result = self.board.select(x, y, colour = p.colour)
 					
-					result = p.update(result)					
+					result = p.update(result)
+					if self.stopped():
+						break
 					for p2 in self.players:
-						if p2 != p:
-							p2.update(result) # Inform players of what happened
+						if p2 == p:
+							continue
+						p2.update(result) # Inform players of what happened
+						if self.stopped():
+							break
+					
+					if self.stopped():
+						break
 
 
 					log(result)
@@ -77,6 +86,7 @@ class GameThread(StoppableThread):
 						self.stop()
 
 					if self.stopped():
+						#debug("Quitting in get_move")
 						break
 					
 					if isinstance(p, NetworkPlayer):
@@ -90,10 +100,20 @@ class GameThread(StoppableThread):
 						result = str(x) + " " + str(y) + " -> " + str(x2) + " " + str(y2)
 						self.board.update_move(x, y, x2, y2)
 					
-					result = p.update(result)				
+					result = p.update(result)
+					if self.stopped():
+						break
 					for p2 in self.players:
-						if p2 != p:
-							p2.update(result) # Inform players of what happened
+						if p2 == p:
+							continue
+						p2.update(result) # Inform players of what happened
+						if self.stopped():
+							break
+					
+					if self.stopped():
+						break
+					
+					
 											
 					log(result)
 

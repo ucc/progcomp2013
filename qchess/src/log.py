@@ -3,8 +3,8 @@ import datetime
 import urllib2
 
 class LogFile():
-	def __init__(self, log):	
-		
+	def __init__(self, log, name):	
+		self.name = name
 		self.log = log
 		self.logged = []
 		self.log.write("# Log starts " + str(datetime.datetime.now()) + "\n")
@@ -38,7 +38,7 @@ class ShortLog(LogFile):
 			self.log = sys.stdout
 		else:
 			self.log = open(file_name, "w", 0)
-		LogFile.__init__(self, self.log)
+		LogFile.__init__(self, self.log, "@"+file_name)
 		self.file_name = file_name
 		self.phase = 0
 

@@ -257,7 +257,7 @@ class Board():
 	# Select a piece on the board (colour is the colour of whoever is doing the selecting)
 	def select(self, x,y, colour=None):
 		if not self.on_board(x, y): # Get on board everyone!
-			raise Exception("BOUNDS")
+			raise Exception("BOUNDS " + str(x) + ","+str(y))
 
 		piece = self.grid[x][y]
 		if piece == None:
@@ -273,7 +273,7 @@ class Board():
 	# Update the board when a piece has been selected
 	# "type" is apparently reserved, so I'll use "state"
 	def update_select(self, x, y, type_index, state, sanity=True, deselect=True):
-		debug(str(self) + " update_select called")
+		#debug(str(self) + " update_select called")
 		piece = self.grid[x][y]
 		if piece.types[type_index] == "unknown":
 			if not state in self.unrevealed_types[piece.colour].keys() and sanity == True:
@@ -293,7 +293,7 @@ class Board():
 		
 	# Update the board when a piece has been moved
 	def update_move(self, x, y, x2, y2, sanity=True):
-		debug(str(self) + " update_move called \""+str(x)+ " " + str(y) + " -> " + str(x2) + " " + str(y2) + "\"")	
+		#debug(str(self) + " update_move called \""+str(x)+ " " + str(y) + " -> " + str(x2) + " " + str(y2) + "\"")	
 		piece = self.grid[x][y]
 		#print "Moving " + str(x) + "," + str(y) + " to " + str(x2) + "," + str(y2) + "; possible_moves are " + str(self.possible_moves(piece))
 		
@@ -333,7 +333,7 @@ class Board():
 	# Update the board from a string
 	# Guesses what to do based on the format of the string
 	def update(self, result, sanity=True, deselect=True):
-		debug(str(self) + " update called \""+str(result)+"\"")
+		#debug(str(self) + " update called \""+str(result)+"\"")
 		# String always starts with 'x y'
 		try:
 			s = result.split(" ")
@@ -1148,7 +1148,7 @@ class NetworkPlayer(Player):
 		return "NetworkPlayer<"+str(self.colour)+","+str(self.player)+">"
 		
 	def select(self):
-		debug(str(self) + " select called")
+		#debug(str(self) + " select called")
 		if self.player != None:
 			s = self.player.select()
 			self.send_message(str(s[0]) + " " + str(s[1]))
@@ -1157,21 +1157,24 @@ class NetworkPlayer(Player):
 			for p in game.players:
 				if p != self and isinstance(p, NetworkPlayer) and p.player == None:
 					p.network.send_message(str(s[0]) + " " + str(s[1]))
+		if s == [-1,-1]:
+			game.final_result = "network terminate"
+			game.stop()
 		return s
 	
 	def send_message(self, message):
-		debug(str(self) + " send_message(\""+str(message)+"\") called")
+		#debug(str(self) + " send_message(\""+str(message)+"\") called")
 		self.network.send_message(message)
 		
 	def get_response(self):
-		debug(str(self) + " get_response() called")
+		#debug(str(self) + " get_response() called")
 		s = self.network.get_response()
-		debug(str(self) + " get_response() returns \""+str(s)+"\"")
+		#debug(str(self) + " get_response() returns \""+str(s)+"\"")
 		return s
 			
 			
 	def get_move(self):
-		debug(str(self) + " get_move called")
+		#debug(str(self) + " get_move called")
 		if self.player != None:
 			s = self.player.get_move()
 			self.send_message(str(s[0]) + " " + str(s[1]))
@@ -1180,15 +1183,23 @@ class NetworkPlayer(Player):
 			for p in game.players:
 				if p != self and isinstance(p, NetworkPlayer) and p.player == None:
 					p.network.send_message(str(s[0]) + " " + str(s[1]))
+					
+		if s == [-1,-1]:
+			game.final_result = "network terminate"
+			game.stop()
 		return s
 	
 	def update(self, result):
-		debug(str(self) + " update(\""+str(result)+"\") called")
+		#debug(str(self) + " update(\""+str(result)+"\") called")
 		if self.network.server == True:
 			if self.player == None:
 				self.send_message(result)
 		elif self.player != None:
 			result = self.get_response()
+			if result == "-1 -1":
+				game.final_result = "network terminate"
+				game.stop()
+				return "-1 -1"
 			self.board.update(result, deselect=False)
 		
 		
@@ -1207,7 +1218,10 @@ class NetworkPlayer(Player):
 			return self.player.base_player()
 		
 	def quit(self, result):
-		pass
+		try:
+			self.send_message("-1 -1")
+		except:
+			pass
 
 class Network():
 	def __init__(self, address = (None,4562)):
@@ -1221,7 +1235,7 @@ class Network():
 		self.connected = False
 			
 	def connect(self):	
-		debug(str(self) + "Tries to connect")
+		#debug(str(self) + "Tries to connect")
 		self.connected = True
 		if self.address[0] == None:
 			self.host = "0.0.0.0" #socket.gethostname() # Breaks things???
@@ -1324,8 +1338,8 @@ import datetime
 import urllib2
 
 class LogFile():
-	def __init__(self, log):	
-		
+	def __init__(self, log, name):	
+		self.name = name
 		self.log = log
 		self.logged = []
 		self.log.write("# Log starts " + str(datetime.datetime.now()) + "\n")
@@ -1359,7 +1373,7 @@ class ShortLog(LogFile):
 			self.log = sys.stdout
 		else:
 			self.log = open(file_name, "w", 0)
-		LogFile.__init__(self, self.log)
+		LogFile.__init__(self, self.log, "@"+file_name)
 		self.file_name = file_name
 		self.phase = 0
 
@@ -1538,6 +1552,7 @@ class GameThread(StoppableThread):
 				if True:
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
+						#debug("Quitting in select")
 						break
 						
 					if isinstance(p, NetworkPlayer):
@@ -1549,10 +1564,18 @@ class GameThread(StoppableThread):
 					else:
 						result = self.board.select(x, y, colour = p.colour)
 					
-					result = p.update(result)					
+					result = p.update(result)
+					if self.stopped():
+						break
 					for p2 in self.players:
-						if p2 != p:
-							p2.update(result) # Inform players of what happened
+						if p2 == p:
+							continue
+						p2.update(result) # Inform players of what happened
+						if self.stopped():
+							break
+					
+					if self.stopped():
+						break
 
 
 					log(result)
@@ -1582,6 +1605,7 @@ class GameThread(StoppableThread):
 						self.stop()
 
 					if self.stopped():
+						#debug("Quitting in get_move")
 						break
 					
 					if isinstance(p, NetworkPlayer):
@@ -1595,10 +1619,20 @@ class GameThread(StoppableThread):
 						result = str(x) + " " + str(y) + " -> " + str(x2) + " " + str(y2)
 						self.board.update_move(x, y, x2, y2)
 					
-					result = p.update(result)				
+					result = p.update(result)
+					if self.stopped():
+						break
 					for p2 in self.players:
-						if p2 != p:
-							p2.update(result) # Inform players of what happened
+						if p2 == p:
+							continue
+						p2.update(result) # Inform players of what happened
+						if self.stopped():
+							break
+					
+					if self.stopped():
+						break
+					
+					
 											
 					log(result)
 
@@ -2253,7 +2287,18 @@ class GraphicsThread(StoppableThread):
 						#print "Reject " + str(i) + str(event.pos) + " vs " + str(t)
 		
 
-
+	# Function to choose between dedicated server or normal play
+	def SelectServer(self):
+	
+		choice = self.SelectButton(["Normal", "Join Eigenserver"],prompt="Game type?")
+		if choice == 0:
+			return None
+		choice = self.SelectButton(["progcomp.ucc", "other"], prompt="Address?")
+		if choice == 0:
+			return "progcomp.ucc.asn.au"
+		else:
+			return self.getstr(prompt = "Enter address:")
+			
 	# Function to pick players in a nice GUI way
 	def SelectPlayers(self, players = []):
 
@@ -2344,53 +2389,76 @@ class GraphicsThread(StoppableThread):
 			
 # --- graphics.py --- #
 def dedicated_server():
-	max_games = 4
+	global log_files
+	
+	max_games = 5
 	games = []
+	gameID = 0
 	while True:
 		# Get players
+		gameID += 1
+		log("Getting clients...")
 		s = socket.socket()
+		s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		s.bind(("0.0.0.0", 4562))
 		s.listen(2)
 		ss = s.accept()
 		
-		debug("Got white player")
+		log("Got white player")
 		
-		g = subprocess.Popen(["python", "qchess.py", "@network::"+str(4700+len(games)), "@network::"+str(4700+len(games)), "--log="+"_".join(str(datetime.datetime.now()).split(" ")) + ".log"], stdout=subprocess.PIPE)
+		args = ["python", "qchess.py", "--no-graphics", "@network::"+str(4600+2*len(games)), "@network::"+str(4600+2*len(games))]
+		if len(log_files) != 0:
+			for l in log_files:
+				if l.name == "":
+					args.append("--log")
+				else:
+					args.append("--log="+str(l.name)+"_"+str(gameID))
+		
+		g = subprocess.Popen(args, stdout=subprocess.PIPE)
 		games.append(g)
 		
-		ss[0].send("white " + str(4700 + len(games)-1))
-		ss[0].shutdown(socket.SHUT_RDWR)
+		time.sleep(0.5)
+		ss[0].send("white " + str(4600 + 2*(len(games)-1)))
+		ss[0].shutdown(socket.SHUT_RD)
 		ss[0].close()
 		
 		time.sleep(0.5)
 		ss = s.accept()
 		
-		debug("Got black player")
+		log("Got black player")
 		
-		ss[0].send("black " + str(4700 + len(games)-1))
-		ss[0].shutdown(socket.SHUT_RDWR)
+		time.sleep(0.5)
+		ss[0].send("black " + str(4600 + 2*(len(games)-1)))
+		ss[0].shutdown(socket.SHUT_RD)
 		ss[0].close()
 		
 		s.shutdown(socket.SHUT_RDWR)
 		s.close()
 		
+		
 		while len(games) > max_games:
-			ready = select.select(map(lambda e : e.stdout, games),[], [], None)
-			for r in ready:
+			#log("Too many games; waiting for game to finish...")
+			ready = select.select(map(lambda e : e.stdout, games),[], [])
+			for r in ready[0]:
 				s = r.readline().strip(" \r\n").split(" ")
 				if s[0] == "white" or s[0] == "black":
 					for g in games[:]:
 						if g.stdout == r:
+							log("Game " + str(g) + " has finished")
 							games.remove(g)
+							
+	return 0
 	
 def client(addr):
+	
+	
 	
 	s = socket.socket()
 	s.connect((addr, 4562))
 	
 	[colour,port] = s.recv(1024).strip(" \r\n").split(" ")
 	
-	debug("Colour: " + colour + ", port: " + port)
+	#debug("Colour: " + colour + ", port: " + port)
 	
 	s.shutdown(socket.SHUT_RDWR)
 	s.close()
@@ -2400,7 +2468,7 @@ def client(addr):
 	else:
 		p = subprocess.Popen(["python", "qchess.py", "@network:"+addr+":"+port, "@human"])
 	p.wait()
-	sys.exit(0)# --- server.py --- #
+	return 0# --- server.py --- #
 #!/usr/bin/python -u
 
 # Do you know what the -u does? It unbuffers stdin and stdout
@@ -2486,6 +2554,9 @@ def main(argv):
 	global always_reveal_states
 	global sleep_timeout
 
+
+	server_addr = None
+
 	max_moves = None
 	src_file = None
 	
@@ -2543,22 +2614,25 @@ def main(argv):
 					if len(f.split(":")) == 2:
 						max_moves = int(f.split(":")[1])
 						
-		elif (arg[1] == '-' and arg[2:] == "server"):
-			if len(arg[2:].split("=") <= 1):
-				dedicated_server()
+		elif (arg[1] == '-' and arg[2:].split("=")[0] == "server"):
+			#debug("Server: " + str(arg[2:]))
+			if len(arg[2:].split("=")) <= 1:
+				server_addr = True
 			else:
-				client(arg[2:].split("=")[1])
-			sys.exit(0)
+				server_addr = arg[2:].split("=")[1]
+			
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
 			# Log file
 			if len(arg[2:].split("=")) == 1:
-				log_files.append(LogFile(sys.stdout))
+				log_files.append(LogFile(sys.stdout,""))
 			else:
 				f = arg[2:].split("=")[1]
-				if f[0] == '@':
+				if f == "":
+					log_files.append(LogFile(sys.stdout, ""))
+				elif f[0] == '@':
 					log_files.append(ShortLog(f[1:]))
 				else:
-					log_files.append(LogFile(open(f, "w", 0)))
+					log_files.append(LogFile(open(f, "w", 0), f))
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "delay"):
 			# Delay
 			if len(arg[2:].split("=")) == 1:
@@ -2583,7 +2657,17 @@ def main(argv):
 			# Help
 			os.system("less data/help.txt") # The best help function
 			return 0
-
+		
+	# Dedicated server?
+	
+	#debug("server_addr = " + str(server_addr))
+	
+	if server_addr != None:
+		if server_addr == True:
+			return dedicated_server()
+		else:
+			return client(server_addr)
+		
 
 	# Create the board
 	
@@ -2628,6 +2712,14 @@ def main(argv):
 	# If there are no players listed, display a nice pretty menu
 	if len(players) != 2:
 		if graphics != None:
+			
+			server_addr = graphics.SelectServer()
+			if server_addr != None:
+				if server_addr == True:
+					return dedicated_server()
+				else:
+					return client(server_addr)	
+			
 			players = graphics.SelectPlayers(players)
 		else:
 			sys.stderr.write(sys.argv[0] + " : Usage " + sys.argv[0] + " white black\n")
@@ -2647,7 +2739,7 @@ def main(argv):
 				players[i] = NetworkPlayer(old[i].colour, p.network, old[i])
 		
 	for p in players:
-		debug(str(p))
+		#debug(str(p))
 		if isinstance(p, NetworkPlayer):
 			p.board = game.board
 			if not p.network.connected:
@@ -2712,8 +2804,9 @@ def main(argv):
 
 # This is how python does a main() function...
 if __name__ == "__main__":
+	retcode = 0
 	try:
-		sys.exit(main(sys.argv))
+		retcode = main(sys.argv)
 	except KeyboardInterrupt:
 		sys.stderr.write(sys.argv[0] + " : Got KeyboardInterrupt. Stopping everything\n")
 		if isinstance(graphics, StoppableThread):
@@ -2724,8 +2817,21 @@ if __name__ == "__main__":
 			game.stop()
 			if game.is_alive():
 				game.join()
-
-		sys.exit(102)
+		retcode = 102
+	#except Exception, e:
+	#	sys.stderr.write(sys.argv[0] + " : " + e.message + "\n")
+	#	retcode = 103	
+		
+	try:
+    		sys.stdout.close()
+	except:
+    		pass
+	try:
+    		sys.stderr.close()
+	except:
+    		pass
+	sys.exit(retcode)
+		
 
 # --- main.py --- #
-# EOF - created from make on Sat Apr 20 10:20:13 WST 2013
+# EOF - created from make on Sat Apr 20 12:19:31 WST 2013

@@ -157,7 +157,7 @@ class Board():
 	# Select a piece on the board (colour is the colour of whoever is doing the selecting)
 	def select(self, x,y, colour=None):
 		if not self.on_board(x, y): # Get on board everyone!
-			raise Exception("BOUNDS")
+			raise Exception("BOUNDS " + str(x) + ","+str(y))
 
 		piece = self.grid[x][y]
 		if piece == None:
@@ -173,7 +173,7 @@ class Board():
 	# Update the board when a piece has been selected
 	# "type" is apparently reserved, so I'll use "state"
 	def update_select(self, x, y, type_index, state, sanity=True, deselect=True):
-		debug(str(self) + " update_select called")
+		#debug(str(self) + " update_select called")
 		piece = self.grid[x][y]
 		if piece.types[type_index] == "unknown":
 			if not state in self.unrevealed_types[piece.colour].keys() and sanity == True:
@@ -193,7 +193,7 @@ class Board():
 		
 	# Update the board when a piece has been moved
 	def update_move(self, x, y, x2, y2, sanity=True):
-		debug(str(self) + " update_move called \""+str(x)+ " " + str(y) + " -> " + str(x2) + " " + str(y2) + "\"")	
+		#debug(str(self) + " update_move called \""+str(x)+ " " + str(y) + " -> " + str(x2) + " " + str(y2) + "\"")	
 		piece = self.grid[x][y]
 		#print "Moving " + str(x) + "," + str(y) + " to " + str(x2) + "," + str(y2) + "; possible_moves are " + str(self.possible_moves(piece))
 		
@@ -233,7 +233,7 @@ class Board():
 	# Update the board from a string
 	# Guesses what to do based on the format of the string
 	def update(self, result, sanity=True, deselect=True):
-		debug(str(self) + " update called \""+str(result)+"\"")
+		#debug(str(self) + " update called \""+str(result)+"\"")
 		# String always starts with 'x y'
 		try:
 			s = result.split(" ")
