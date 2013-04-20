@@ -165,4 +165,6 @@ class Network():
 		
 		
 
-		
+	def close(self):
+		self.src.shutdown()
+		self.src.close()

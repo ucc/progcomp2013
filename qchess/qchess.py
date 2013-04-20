@@ -1299,7 +1299,9 @@ class Network():
 		
 		
 
-		
+	def close(self):
+		self.src.shutdown()
+		self.src.close()
 # --- network.py --- #
 import threading
 
@@ -2251,6 +2253,7 @@ class GraphicsThread(StoppableThread):
 						#print "Reject " + str(i) + str(event.pos) + " vs " + str(t)
 		
 
+
 	# Function to pick players in a nice GUI way
 	def SelectPlayers(self, players = []):
 
@@ -2313,7 +2316,7 @@ class GraphicsThread(StoppableThread):
 								time.sleep(1)
 								p = None
 						players.append(p)
-			elif choice == 2:
+			elif choice == 1:
 				address = ""
 				while address == "":
 					self.board.display_grid(self.window, self.grid_sz)
@@ -2340,6 +2343,64 @@ class GraphicsThread(StoppableThread):
 				
 			
 # --- graphics.py --- #
+def dedicated_server():
+	max_games = 4
+	games = []
+	while True:
+		# Get players
+		s = socket.socket()
+		s.bind(("0.0.0.0", 4562))
+		s.listen(2)
+		ss = s.accept()
+		
+		debug("Got white player")
+		
+		g = subprocess.Popen(["python", "qchess.py", "@network::"+str(4700+len(games)), "@network::"+str(4700+len(games)), "--log="+"_".join(str(datetime.datetime.now()).split(" ")) + ".log"], stdout=subprocess.PIPE)
+		games.append(g)
+		
+		ss[0].send("white " + str(4700 + len(games)-1))
+		ss[0].shutdown(socket.SHUT_RDWR)
+		ss[0].close()
+		
+		time.sleep(0.5)
+		ss = s.accept()
+		
+		debug("Got black player")
+		
+		ss[0].send("black " + str(4700 + len(games)-1))
+		ss[0].shutdown(socket.SHUT_RDWR)
+		ss[0].close()
+		
+		s.shutdown(socket.SHUT_RDWR)
+		s.close()
+		
+		while len(games) > max_games:
+			ready = select.select(map(lambda e : e.stdout, games),[], [], None)
+			for r in ready:
+				s = r.readline().strip(" \r\n").split(" ")
+				if s[0] == "white" or s[0] == "black":
+					for g in games[:]:
+						if g.stdout == r:
+							games.remove(g)
+	
+def client(addr):
+	
+	s = socket.socket()
+	s.connect((addr, 4562))
+	
+	[colour,port] = s.recv(1024).strip(" \r\n").split(" ")
+	
+	debug("Colour: " + colour + ", port: " + port)
+	
+	s.shutdown(socket.SHUT_RDWR)
+	s.close()
+	
+	if colour == "white":
+		p = subprocess.Popen(["python", "qchess.py", "@human", "@network:"+addr+":"+port])
+	else:
+		p = subprocess.Popen(["python", "qchess.py", "@network:"+addr+":"+port, "@human"])
+	p.wait()
+	sys.exit(0)# --- server.py --- #
 #!/usr/bin/python -u
 
 # Do you know what the -u does? It unbuffers stdin and stdout
@@ -2369,14 +2430,18 @@ def make_player(name, colour):
 		if s[0] == "network":
 			ip = None
 			port = 4562
+			#print str(s)
 			if len(s) > 1:
-				ip = s[1]
+				if s[1] != "":
+					ip = s[1]
+			if len(s) > 2:
+				port = int(s[2])
 				
 			if ip == None:
 				if colour == "black":
-					port = 4563
+					port += 1
 			elif colour == "white":
-				port = 4563
+				port += 1
 						
 			return NetworkPlayer(colour, Network((ip, port)), None)
 		if s[0] == "internal":
@@ -2477,7 +2542,13 @@ def main(argv):
 
 					if len(f.split(":")) == 2:
 						max_moves = int(f.split(":")[1])
-
+						
+		elif (arg[1] == '-' and arg[2:] == "server"):
+			if len(arg[2:].split("=") <= 1):
+				dedicated_server()
+			else:
+				client(arg[2:].split("=")[1])
+			sys.exit(0)
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
 			# Log file
 			if len(arg[2:].split("=")) == 1:
@@ -2631,6 +2702,13 @@ def main(argv):
 	sys.stdout.write(game.final_result + "\n")
 
 	return error
+		
+		
+	
+		
+	
+		
+		
 
 # This is how python does a main() function...
 if __name__ == "__main__":
@@ -2650,4 +2728,4 @@ if __name__ == "__main__":
 		sys.exit(102)
 
 # --- main.py --- #
-# EOF - created from make on Fri Apr 12 17:07:44 WST 2013
+# EOF - created from make on Sat Apr 20 10:20:13 WST 2013

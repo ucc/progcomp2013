@@ -27,14 +27,18 @@ def make_player(name, colour):
 		if s[0] == "network":
 			ip = None
 			port = 4562
+			#print str(s)
 			if len(s) > 1:
-				ip = s[1]
+				if s[1] != "":
+					ip = s[1]
+			if len(s) > 2:
+				port = int(s[2])
 				
 			if ip == None:
 				if colour == "black":
-					port = 4563
+					port += 1
 			elif colour == "white":
-				port = 4563
+				port += 1
 						
 			return NetworkPlayer(colour, Network((ip, port)), None)
 		if s[0] == "internal":
@@ -135,7 +139,13 @@ def main(argv):
 
 					if len(f.split(":")) == 2:
 						max_moves = int(f.split(":")[1])
-
+						
+		elif (arg[1] == '-' and arg[2:] == "server"):
+			if len(arg[2:].split("=") <= 1):
+				dedicated_server()
+			else:
+				client(arg[2:].split("=")[1])
+			sys.exit(0)
 		elif (arg[1] == '-' and arg[2:].split("=")[0] == "log"):
 			# Log file
 			if len(arg[2:].split("=")) == 1:
@@ -289,6 +299,13 @@ def main(argv):
 	sys.stdout.write(game.final_result + "\n")
 
 	return error
+		
+		
+	
+		
+	
+		
+		
 
 # This is how python does a main() function...
 if __name__ == "__main__":

@@ -367,6 +367,7 @@ class GraphicsThread(StoppableThread):
 						#print "Reject " + str(i) + str(event.pos) + " vs " + str(t)
 		
 
+
 	# Function to pick players in a nice GUI way
 	def SelectPlayers(self, players = []):
 
@@ -429,7 +430,7 @@ class GraphicsThread(StoppableThread):
 								time.sleep(1)
 								p = None
 						players.append(p)
-			elif choice == 2:
+			elif choice == 1:
 				address = ""
 				while address == "":
 					self.board.display_grid(self.window, self.grid_sz)
