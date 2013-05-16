@@ -27,6 +27,51 @@ class Player():
 	def base_player(self):
 		return self
 
+# Player that runs through a fifo
+class FifoPlayer(Player):
+	def __init__(self, name, colour):
+		Player.__init__(self, name, colour)
+		os.mkfifo(self.name+".in")
+		os.mkfifo(self.name+".out")
+		
+		
+		
+		
+		
+	def update(self, result):
+		sys.stderr.write("update fifo called\n")
+		self.fifo_out = open(self.name+".out", "w")
+		self.fifo_out.write(result +"\n")
+		self.fifo_out.close()
+		return result
+		
+	def select(self):
+		sys.stderr.write("select fifo called\n")
+		self.fifo_out = open(self.name+".out", "w")
+		self.fifo_out.write("SELECT?\n")
+		self.fifo_out.close()
+		self.fifo_in = open(self.name+".in", "r")
+		s = map(int, self.fifo_in.readline().strip(" \r\n").split(" "))
+		self.fifo_in.close()
+		return s
+	
+	def get_move(self):
+		sys.stderr.write("get_move fifo called\n")
+		self.fifo_out = open(self.name+".out", "w")
+		self.fifo_out.write("MOVE?\n")
+		self.fifo_out.close()
+		self.fifo_in = open(self.name+".in", "r")
+		s = map(int, self.fifo_in.readline().strip(" \r\n").split(" "))
+		self.fifo_in.close()
+		return s
+	
+	def quit(self, result):
+		self.fifo_out = open(self.name+".out", "w")
+		self.fifo_out.write(result + "\n")
+		self.fifo_out.close()
+		os.remove(self.name+".in")
+		os.remove(self.name+".out")
+
 # Player that runs from another process
 class ExternalAgent(Player):
 

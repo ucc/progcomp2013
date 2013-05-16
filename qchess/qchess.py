@@ -432,6 +432,12 @@ class Board():
 		return result
 
 	def prob_is_type(self, p, state):
+		if p.current_type != 0:
+			if state == p.current_type:
+				return 1.0
+			else:
+				return 0.0
+		
 		prob = 0.5
 		result = 0
 		for i in range(len(p.types)):
@@ -587,6 +593,8 @@ class Board():
 	def on_board(self, x, y):
 		return (x >= 0 and x < w) and (y >= 0 and y < h)
 	
+	
+	
 	# Pushes a move temporarily
 	def push_move(self, piece, x, y):
 		target = self.grid[x][y]
@@ -612,7 +620,7 @@ class Board():
 		self.grid[x2][y2] = target
 		
 		for p in self.pieces["white"] + self.pieces["black"]:
-				p.possible_moves = None
+			p.possible_moves = None
 		
 # --- board.py --- #
 import subprocess
@@ -643,6 +651,51 @@ class Player():
 
 	def base_player(self):
 		return self
+
+# Player that runs through a fifo
+class FifoPlayer(Player):
+	def __init__(self, name, colour):
+		Player.__init__(self, name, colour)
+		os.mkfifo(self.name+".in")
+		os.mkfifo(self.name+".out")
+		
+		
+		
+		
+		
+	def update(self, result):
+		sys.stderr.write("update fifo called\n")
+		self.fifo_out = open(self.name+".out", "w")
+		self.fifo_out.write(result +"\n")
+		self.fifo_out.close()
+		return result
+		
+	def select(self):
+		sys.stderr.write("select fifo called\n")
+		self.fifo_out = open(self.name+".out", "w")
+		self.fifo_out.write("SELECT?\n")
+		self.fifo_out.close()
+		self.fifo_in = open(self.name+".in", "r")
+		s = map(int, self.fifo_in.readline().strip(" \r\n").split(" "))
+		self.fifo_in.close()
+		return s
+	
+	def get_move(self):
+		sys.stderr.write("get_move fifo called\n")
+		self.fifo_out = open(self.name+".out", "w")
+		self.fifo_out.write("MOVE?\n")
+		self.fifo_out.close()
+		self.fifo_in = open(self.name+".in", "r")
+		s = map(int, self.fifo_in.readline().strip(" \r\n").split(" "))
+		self.fifo_in.close()
+		return s
+	
+	def quit(self, result):
+		self.fifo_out = open(self.name+".out", "w")
+		self.fifo_out.write(result + "\n")
+		self.fifo_out.close()
+		os.remove(self.name+".in")
+		os.remove(self.name+".out")
 
 # Player that runs from another process
 class ExternalAgent(Player):
@@ -886,10 +939,9 @@ class ExternalWrapper(ExternalAgent):
 
 
 class AgentBishop(AgentRandom): # Inherits from AgentRandom (in qchess)
-	def __init__(self, name, colour):
+	def __init__(self, name, colour,value={"pawn" : 1, "bishop" : 3, "knight" : 3, "rook" : 5, "queen" : 9, "king" : 100, "unknown" : 2}):
 		InternalAgent.__init__(self, name, colour)
-		self.value = {"pawn" : 1, "bishop" : 3, "knight" : 3, "rook" : 5, "queen" : 9, "king" : 100, "unknown" : 4}
-
+		self.value = value
 		self.aggression = 2.0 # Multiplier for scoring due to aggressive actions
 		self.defence = 1.0 # Multiplier for scoring due to defensive actions
 		
@@ -1599,10 +1651,10 @@ class GameThread(StoppableThread):
 								graphics.state["dest"] = None
 						continue
 
-					try:
-						[x2,y2] = p.get_move() # Player selects a destination
-					except:
-						self.stop()
+					#try:
+					[x2,y2] = p.get_move() # Player selects a destination
+					#except:
+					#	self.stop()
 
 					if self.stopped():
 						#debug("Quitting in get_move")
@@ -2531,7 +2583,11 @@ def make_player(name, colour):
 			sys.stderr.write(sys.argv[0] + " : Can't find an internal agent matching \"" + s[1] + "\"\n")
 			sys.stderr.write(sys.argv[0] + " : Choices are: " + str(map(lambda e : e[0], internal_agents)) + "\n")
 			return None
-			
+		if s[0] == "fifo":
+			if len(s) > 1:
+				return FifoPlayer(s[1], colour)
+			else:
+				return FifoPlayer(str(os.getpid())+"."+colour, colour)
 
 	else:
 		return ExternalAgent(name, colour)
@@ -2715,6 +2771,7 @@ def main(argv):
 			
 			server_addr = graphics.SelectServer()
 			if server_addr != None:
+				pygame.quit() # Time to say goodbye
 				if server_addr == True:
 					return dedicated_server()
 				else:
@@ -2834,4 +2891,4 @@ if __name__ == "__main__":
 		
 
 # --- main.py --- #
-# EOF - created from make on Sat Apr 20 12:19:31 WST 2013
+# EOF - created from make on Thu May 16 23:54:28 WST 2013
