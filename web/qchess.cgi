@@ -12,6 +12,8 @@ def main(argv):
 	form = cgi.FieldStorage()
 	client = cgi.escape(os.environ["REMOTE_ADDR"])
 	
+	print "Content-Type: text/plain\r\n\r\n"
+	
 	try:
 		with open(client): pass
 	except IOError:
