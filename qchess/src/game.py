@@ -29,8 +29,8 @@ class GameThread(StoppableThread):
 			for p in self.players:
 				with self.lock:
 					self.state["turn"] = p.base_player()
-				#try:
-				if True:
+				try:
+				#if True:
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
 						#debug("Quitting in select")
@@ -80,10 +80,10 @@ class GameThread(StoppableThread):
 								graphics.state["dest"] = None
 						continue
 
-					try:
-						[x2,y2] = p.get_move() # Player selects a destination
-					except:
-						self.stop()
+					#try:
+					[x2,y2] = p.get_move() # Player selects a destination
+					#except:
+					#	self.stop()
 
 					if self.stopped():
 						#debug("Quitting in get_move")
@@ -132,26 +132,29 @@ class GameThread(StoppableThread):
 							graphics.state["dest"] = None
 							graphics.state["moves"] = None
 
-			# Commented out exception stuff for now, because it makes it impossible to tell if I made an IndentationError somewhere
-			#	except Exception,e:
-			#		result = e.message
-			#		#sys.stderr.write(result + "\n")
-			#		
-			#		self.stop()
-			#		with self.lock:
-			#			self.final_result = self.state["turn"].colour + " " + e.message
-
-				end = self.board.end_condition()
-				if end != None:		
-					with self.lock:
-						if end == "DRAW":
-							self.final_result = self.state["turn"].colour + " " + end
-						else:
-							self.final_result = end
-					self.stop()
+			
+					end = self.board.end_condition()
+					if end != None:		
+						with self.lock:
+							if end == "DRAW":
+								self.final_result = self.state["turn"].colour + " " + end
+							else:
+								self.final_result = end
+						self.stop()
 				
-				if self.stopped():
+					if self.stopped():
+						break
+				except Exception,e:
+				#if False:
+					result = e.message
+					#sys.stderr.write(result + "\n")
+					
+					self.stop()
+					
+					with self.lock:
+						self.final_result = self.state["turn"].colour + " " + e.message
 					break
+
 
 
 		for p2 in self.players:

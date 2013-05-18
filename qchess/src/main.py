@@ -60,7 +60,11 @@ def make_player(name, colour):
 			sys.stderr.write(sys.argv[0] + " : Can't find an internal agent matching \"" + s[1] + "\"\n")
 			sys.stderr.write(sys.argv[0] + " : Choices are: " + str(map(lambda e : e[0], internal_agents)) + "\n")
 			return None
-			
+		if s[0] == "fifo":
+			if len(s) > 1:
+				return FifoPlayer(s[1], colour)
+			else:
+				return FifoPlayer(str(os.getpid())+"."+colour, colour)
 
 	else:
 		return ExternalAgent(name, colour)
@@ -195,7 +199,13 @@ def main(argv):
 		if server_addr == True:
 			return dedicated_server()
 		else:
-			return client(server_addr)
+			if len(players) > 1:
+				sys.stderr.write("Only a single player may be provided when --server is used\n")
+				return 1
+			if len(players) == 1:
+				return client(server_addr, players[0].name)
+			else:
+				return client(server_addr)
 		
 
 	# Create the board
@@ -244,6 +254,7 @@ def main(argv):
 			
 			server_addr = graphics.SelectServer()
 			if server_addr != None:
+				pygame.quit() # Time to say goodbye
 				if server_addr == True:
 					return dedicated_server()
 				else:

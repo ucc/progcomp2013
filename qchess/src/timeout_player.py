@@ -22,8 +22,11 @@ class Worker(multiprocessing.Process):
 		self.q = q
 
 	def run(self):
-		#print str(self) + " runs " + str(self.function) + " with args " + str(self.args) 
+		#print str(self) + " runs " + str(self.function) + " with args " + str(self.args)
+		#try:
 		self.q.put(self.function(*self.args))
+		#except IOError:
+		#	pass
 		
 		
 
@@ -44,7 +47,7 @@ def TimeoutFunction(function, args, timeout):
 			w.terminate()
 			s.join()
 			raise Exception("TIMEOUT")
-
+		time.sleep(0.1)
 	
 		
 

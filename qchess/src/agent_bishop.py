@@ -2,10 +2,9 @@
 
 
 class AgentBishop(AgentRandom): # Inherits from AgentRandom (in qchess)
-	def __init__(self, name, colour):
+	def __init__(self, name, colour,value={"pawn" : 1, "bishop" : 3, "knight" : 3, "rook" : 5, "queen" : 9, "king" : 100, "unknown" : 2}):
 		InternalAgent.__init__(self, name, colour)
-		self.value = {"pawn" : 1, "bishop" : 3, "knight" : 3, "rook" : 5, "queen" : 9, "king" : 100, "unknown" : 4}
-
+		self.value = value
 		self.aggression = 2.0 # Multiplier for scoring due to aggressive actions
 		self.defence = 1.0 # Multiplier for scoring due to defensive actions
 		

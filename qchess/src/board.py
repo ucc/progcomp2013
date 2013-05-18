@@ -332,6 +332,12 @@ class Board():
 		return result
 
 	def prob_is_type(self, p, state):
+		if p.current_type != 0:
+			if state == p.current_type:
+				return 1.0
+			else:
+				return 0.0
+		
 		prob = 0.5
 		result = 0
 		for i in range(len(p.types)):
@@ -487,6 +493,8 @@ class Board():
 	def on_board(self, x, y):
 		return (x >= 0 and x < w) and (y >= 0 and y < h)
 	
+	
+	
 	# Pushes a move temporarily
 	def push_move(self, piece, x, y):
 		target = self.grid[x][y]
@@ -512,5 +520,5 @@ class Board():
 		self.grid[x2][y2] = target
 		
 		for p in self.pieces["white"] + self.pieces["black"]:
-				p.possible_moves = None
+			p.possible_moves = None
 		

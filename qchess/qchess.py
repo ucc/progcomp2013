@@ -651,9 +651,60 @@ class Player():
 
 	def base_player(self):
 		return self
+	
+
+
+def open_fifo(name, mode, timeout=None):
+	if timeout == None:
+		return open(name, mode)
+	
+	
+	class Worker(threading.Thread):
+		def __init__(self):
+			threading.Thread.__init__(self)
+			self.result = None
+
+			
+		def run(self):		
+			self.result = open(name, mode)
+		
+
+	w = Worker()
+	w.start()
+	
+	start = time.time()
+	while time.time() - start < timeout:
+		if w.is_alive() == False:
+			w.join()
+			return w.result
+		time.sleep(0.1)
+	
+	
+	if w.is_alive():
+		#sys.stderr.write("FIFO_TIMEOUT!\n")
+		if mode == "r":
+			f = open(name, "w")
+		else:
+			f = open(name, "r")
+			
+		#sys.stderr.write("Opened other end!\n")
+		while w.is_alive():
+			time.sleep(0.1)
+			
+		w.join()
+		f.close()
+		w.result.close()
+		raise Exception("FIFO_TIMEOUT")
+	else:
+		w.join()
+		return w.result
+	
 
 # Player that runs through a fifo
 class FifoPlayer(Player):
+	
+	timeout = 300
+	
 	def __init__(self, name, colour):
 		Player.__init__(self, name, colour)
 		os.mkfifo(self.name+".in")
@@ -665,37 +716,58 @@ class FifoPlayer(Player):
 		
 	def update(self, result):
 		sys.stderr.write("update fifo called\n")
-		self.fifo_out = open(self.name+".out", "w")
-		self.fifo_out.write(result +"\n")
-		self.fifo_out.close()
-		return result
+		try:
+			self.fifo_out = open_fifo(self.name+".out", "w", FifoPlayer.timeout)
+		except:
+			raise Exception("FIFO_TIMEOUT")
+		else:
+			self.fifo_out.write(result +"\n")
+			self.fifo_out.close()
+			return result
 		
 	def select(self):
 		sys.stderr.write("select fifo called\n")
-		self.fifo_out = open(self.name+".out", "w")
-		self.fifo_out.write("SELECT?\n")
-		self.fifo_out.close()
-		self.fifo_in = open(self.name+".in", "r")
-		s = map(int, self.fifo_in.readline().strip(" \r\n").split(" "))
-		self.fifo_in.close()
-		return s
+		try:
+			self.fifo_out = open_fifo(self.name+".out", "w", FifoPlayer.timeout)
+		except:
+			#sys.stderr.write("TIMEOUT\n")
+			raise Exception("FIFO_TIMEOUT")
+		else:
+			
+			self.fifo_out.write("SELECT?\n")
+			self.fifo_out.close()
+			self.fifo_in = open_fifo(self.name+".in", "r", FifoPlayer.timeout)
+			s = map(int, self.fifo_in.readline().strip(" \r\n").split(" "))
+			self.fifo_in.close()
+			return s
 	
 	def get_move(self):
 		sys.stderr.write("get_move fifo called\n")
-		self.fifo_out = open(self.name+".out", "w")
-		self.fifo_out.write("MOVE?\n")
-		self.fifo_out.close()
-		self.fifo_in = open(self.name+".in", "r")
-		s = map(int, self.fifo_in.readline().strip(" \r\n").split(" "))
-		self.fifo_in.close()
-		return s
+		try:
+			self.fifo_out = open_fifo(self.name+".out", "w", FifoPlayer.timeout)
+		except:
+			raise Exception("FIFO_TIMEOUT")
+		else:
+			self.fifo_out.write("MOVE?\n")
+			self.fifo_out.close()
+			self.fifo_in = open_fifo(self.name+".in", "r", FifoPlayer.timeout)
+			s = map(int, self.fifo_in.readline().strip(" \r\n").split(" "))
+			self.fifo_in.close()
+			return s
 	
 	def quit(self, result):
-		self.fifo_out = open(self.name+".out", "w")
-		self.fifo_out.write(result + "\n")
-		self.fifo_out.close()
-		os.remove(self.name+".in")
-		os.remove(self.name+".out")
+		try:
+			self.fifo_out = open_fifo(self.name+".out", "w", FifoPlayer.timeout)
+		except:
+			os.remove(self.name+".in")
+			os.remove(self.name+".out")
+			#raise Exception("FIFO_TIMEOUT")
+			
+		else:
+			self.fifo_out.write(result + "\n")
+			self.fifo_out.close()
+			os.remove(self.name+".in")
+			os.remove(self.name+".out")
 
 # Player that runs from another process
 class ExternalAgent(Player):
@@ -1136,8 +1208,11 @@ class Worker(multiprocessing.Process):
 		self.q = q
 
 	def run(self):
-		#print str(self) + " runs " + str(self.function) + " with args " + str(self.args) 
+		#print str(self) + " runs " + str(self.function) + " with args " + str(self.args)
+		#try:
 		self.q.put(self.function(*self.args))
+		#except IOError:
+		#	pass
 		
 		
 
@@ -1158,7 +1233,7 @@ def TimeoutFunction(function, args, timeout):
 			w.terminate()
 			s.join()
 			raise Exception("TIMEOUT")
-
+		time.sleep(0.1)
 	
 		
 
@@ -1383,8 +1458,7 @@ class StoppableThread(threading.Thread):
 		self._stop.set()
 
 	def stopped(self):
-		return self._stop.isSet()
-# --- thread_util.py --- #
+		return self._stop.isSet()# --- thread_util.py --- #
 log_files = []
 import datetime
 import urllib2
@@ -1600,8 +1674,8 @@ class GameThread(StoppableThread):
 			for p in self.players:
 				with self.lock:
 					self.state["turn"] = p.base_player()
-				#try:
-				if True:
+				try:
+				#if True:
 					[x,y] = p.select() # Player selects a square
 					if self.stopped():
 						#debug("Quitting in select")
@@ -1703,26 +1777,29 @@ class GameThread(StoppableThread):
 							graphics.state["dest"] = None
 							graphics.state["moves"] = None
 
-			# Commented out exception stuff for now, because it makes it impossible to tell if I made an IndentationError somewhere
-			#	except Exception,e:
-			#		result = e.message
-			#		#sys.stderr.write(result + "\n")
-			#		
-			#		self.stop()
-			#		with self.lock:
-			#			self.final_result = self.state["turn"].colour + " " + e.message
-
-				end = self.board.end_condition()
-				if end != None:		
-					with self.lock:
-						if end == "DRAW":
-							self.final_result = self.state["turn"].colour + " " + end
-						else:
-							self.final_result = end
-					self.stop()
+			
+					end = self.board.end_condition()
+					if end != None:		
+						with self.lock:
+							if end == "DRAW":
+								self.final_result = self.state["turn"].colour + " " + end
+							else:
+								self.final_result = end
+						self.stop()
 				
-				if self.stopped():
+					if self.stopped():
+						break
+				except Exception,e:
+				#if False:
+					result = e.message
+					#sys.stderr.write(result + "\n")
+					
+					self.stop()
+					
+					with self.lock:
+						self.final_result = self.state["turn"].colour + " " + e.message
 					break
+
 
 
 		for p2 in self.players:
@@ -2501,7 +2578,7 @@ def dedicated_server():
 							
 	return 0
 	
-def client(addr):
+def client(addr, player="@human"):
 	
 	
 	
@@ -2516,9 +2593,9 @@ def client(addr):
 	s.close()
 	
 	if colour == "white":
-		p = subprocess.Popen(["python", "qchess.py", "@human", "@network:"+addr+":"+port])
+		p = subprocess.Popen(["python", "qchess.py", player, "@network:"+addr+":"+port])
 	else:
-		p = subprocess.Popen(["python", "qchess.py", "@network:"+addr+":"+port, "@human"])
+		p = subprocess.Popen(["python", "qchess.py", "@network:"+addr+":"+port, player])
 	p.wait()
 	return 0# --- server.py --- #
 #!/usr/bin/python -u
@@ -2722,7 +2799,13 @@ def main(argv):
 		if server_addr == True:
 			return dedicated_server()
 		else:
-			return client(server_addr)
+			if len(players) > 1:
+				sys.stderr.write("Only a single player may be provided when --server is used\n")
+				return 1
+			if len(players) == 1:
+				return client(server_addr, players[0].name)
+			else:
+				return client(server_addr)
 		
 
 	# Create the board
@@ -2891,4 +2974,4 @@ if __name__ == "__main__":
 		
 
 # --- main.py --- #
-# EOF - created from make on Thu May 16 23:54:28 WST 2013
+# EOF - created from make on Sun May 19 00:54:03 WST 2013

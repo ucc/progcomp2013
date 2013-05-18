@@ -59,7 +59,7 @@ def dedicated_server():
 							
 	return 0
 	
-def client(addr):
+def client(addr, player="@human"):
 	
 	
 	
@@ -74,8 +74,8 @@ def client(addr):
 	s.close()
 	
 	if colour == "white":
-		p = subprocess.Popen(["python", "qchess.py", "@human", "@network:"+addr+":"+port])
+		p = subprocess.Popen(["python", "qchess.py", player, "@network:"+addr+":"+port])
 	else:
-		p = subprocess.Popen(["python", "qchess.py", "@network:"+addr+":"+port, "@human"])
+		p = subprocess.Popen(["python", "qchess.py", "@network:"+addr+":"+port, player])
 	p.wait()
 	return 0

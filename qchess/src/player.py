@@ -26,9 +26,60 @@ class Player():
 
 	def base_player(self):
 		return self
+	
+
+
+def open_fifo(name, mode, timeout=None):
+	if timeout == None:
+		return open(name, mode)
+	
+	
+	class Worker(threading.Thread):
+		def __init__(self):
+			threading.Thread.__init__(self)
+			self.result = None
+
+			
+		def run(self):		
+			self.result = open(name, mode)
+		
+
+	w = Worker()
+	w.start()
+	
+	start = time.time()
+	while time.time() - start < timeout:
+		if w.is_alive() == False:
+			w.join()
+			return w.result
+		time.sleep(0.1)
+	
+	
+	if w.is_alive():
+		#sys.stderr.write("FIFO_TIMEOUT!\n")
+		if mode == "r":
+			f = open(name, "w")
+		else:
+			f = open(name, "r")
+			
+		#sys.stderr.write("Opened other end!\n")
+		while w.is_alive():
+			time.sleep(0.1)
+			
+		w.join()
+		f.close()
+		w.result.close()
+		raise Exception("FIFO_TIMEOUT")
+	else:
+		w.join()
+		return w.result
+	
 
 # Player that runs through a fifo
 class FifoPlayer(Player):
+	
+	timeout = 300
+	
 	def __init__(self, name, colour):
 		Player.__init__(self, name, colour)
 		os.mkfifo(self.name+".in")
@@ -40,37 +91,58 @@ class FifoPlayer(Player):
 		
 	def update(self, result):
 		sys.stderr.write("update fifo called\n")
-		self.fifo_out = open(self.name+".out", "w")
-		self.fifo_out.write(result +"\n")
-		self.fifo_out.close()
-		return result
+		try:
+			self.fifo_out = open_fifo(self.name+".out", "w", FifoPlayer.timeout)
+		except:
+			raise Exception("FIFO_TIMEOUT")
+		else:
+			self.fifo_out.write(result +"\n")
+			self.fifo_out.close()
+			return result
 		
 	def select(self):
 		sys.stderr.write("select fifo called\n")
-		self.fifo_out = open(self.name+".out", "w")
-		self.fifo_out.write("SELECT?\n")
-		self.fifo_out.close()
-		self.fifo_in = open(self.name+".in", "r")
-		s = map(int, self.fifo_in.readline().strip(" \r\n").split(" "))
-		self.fifo_in.close()
-		return s
+		try:
+			self.fifo_out = open_fifo(self.name+".out", "w", FifoPlayer.timeout)
+		except:
+			#sys.stderr.write("TIMEOUT\n")
+			raise Exception("FIFO_TIMEOUT")
+		else:
+			
+			self.fifo_out.write("SELECT?\n")
+			self.fifo_out.close()
+			self.fifo_in = open_fifo(self.name+".in", "r", FifoPlayer.timeout)
+			s = map(int, self.fifo_in.readline().strip(" \r\n").split(" "))
+			self.fifo_in.close()
+			return s
 	
 	def get_move(self):
 		sys.stderr.write("get_move fifo called\n")
-		self.fifo_out = open(self.name+".out", "w")
-		self.fifo_out.write("MOVE?\n")
-		self.fifo_out.close()
-		self.fifo_in = open(self.name+".in", "r")
-		s = map(int, self.fifo_in.readline().strip(" \r\n").split(" "))
-		self.fifo_in.close()
-		return s
+		try:
+			self.fifo_out = open_fifo(self.name+".out", "w", FifoPlayer.timeout)
+		except:
+			raise Exception("FIFO_TIMEOUT")
+		else:
+			self.fifo_out.write("MOVE?\n")
+			self.fifo_out.close()
+			self.fifo_in = open_fifo(self.name+".in", "r", FifoPlayer.timeout)
+			s = map(int, self.fifo_in.readline().strip(" \r\n").split(" "))
+			self.fifo_in.close()
+			return s
 	
 	def quit(self, result):
-		self.fifo_out = open(self.name+".out", "w")
-		self.fifo_out.write(result + "\n")
-		self.fifo_out.close()
-		os.remove(self.name+".in")
-		os.remove(self.name+".out")
+		try:
+			self.fifo_out = open_fifo(self.name+".out", "w", FifoPlayer.timeout)
+		except:
+			os.remove(self.name+".in")
+			os.remove(self.name+".out")
+			#raise Exception("FIFO_TIMEOUT")
+			
+		else:
+			self.fifo_out.write(result + "\n")
+			self.fifo_out.close()
+			os.remove(self.name+".in")
+			os.remove(self.name+".out")
 
 # Player that runs from another process
 class ExternalAgent(Player):
