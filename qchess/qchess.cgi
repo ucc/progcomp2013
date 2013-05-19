@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python -u
 
 # CGI wrapper to qchess
 
@@ -6,10 +6,10 @@ import sys
 import os
 
 import cgi
-import subprocess
 import time
 import threading
 import datetime
+import subprocess
 
 path = "../qchess-cgi-data/"
 
@@ -119,22 +119,23 @@ def main(argv):
 	
 	try:
 		#request = argv[1]
-		request = form["r"]
+		request = form["r"].value
 	except:
 		request = None
 		mode = None
 	else:
 		try:
-			mode = form["m"]
+			mode = form["m"].value
 		except:
 			mode = None
+	
 
 	
 	try:
 		#x = int(argv[1])	
 		#y = int(argv[2])
-		x = form["x"]
-		y = form["y"]
+		x = int(form["x"].value)
+		y = int(form["y"].value)
 	except:
 		
 		if os.path.exists(path+client+".in") and os.path.exists(path+client+".out"):
@@ -147,14 +148,20 @@ def main(argv):
 			return 1
 		elif request == "start":
 			print "New game."
-			args = [path+"qchess.py", "--no-graphics"]
+			args = path+"qchess.py --no-graphics"
 			if mode == None or mode == "bishop":
-				args += ["@fifo:../qchess-cgi-data/"+client, "@internal:AgentBishop"]
+				args += " @fifo:../qchess-cgi-data/"+client+" @internal:AgentBishop"
 			if mode == "random":
-				args += ["@fifo:../qchess-cgi-data/"+client, "@internal:AgentRandom"]
+				args += " @fifo:../qchess-cgi-data/"+client+" @internal:AgentRandom"
 			elif mode == "eigengame":
-				args += ["--server=progcomp.ucc.asn.au", "@fifo:../qchess-cgi-data/"+client]
-			subprocess.Popen(args)
+				args += " --server=progcomp.ucc.asn.au @fifo:../qchess-cgi-data/"+client
+
+			os.system("echo '"+args+"' | at now")
+
+		#	subprocess.Popen(args)
+		#	os.spawnl(os.P_NOWAIT, args)
+
+
 			time.sleep(1)
 			
 			log = open(path+client, "a")
@@ -186,12 +193,13 @@ def main(argv):
 	except:
 		quit()
 	else:
-		#sys.stderr.write("Opened fine\n")
+		#	sys.stderr.write("cgi opened fine\n")
 		s = fifo_in.readline().strip(" \r\n")
-	
+		#sys.stderr.write("cgi read first line: "+str(s)+"\n")	
 		while s != "SELECT?" and s != "MOVE?" and not s.split(" ")[0] in ["white","black"]:
 			if s != "":
 				print s
+		#	sys.stderr.write("Read: " + str(s) + "\n")
 			
 			s = fifo_in.readline().strip(" \r\n")
 		print s
@@ -200,7 +208,7 @@ def main(argv):
 			#sys.stderr.write("cgi quit!\n")
 			quit()
 	
-	#sys.stderr.write("Done\n")
+	#sys.stderr.write("cgi qchess Done\n")
 	return 0
 
 
@@ -209,5 +217,5 @@ if __name__ == "__main__":
 		sys.exit(main(sys.argv))
 	except Exception, e:
 		print e
-		sys.stderr.write(str(e) + "\n")
+		sys.stderr.write(sys.argv[0] + ": " + str(e) + "\n")
 		sys.exit(1)
