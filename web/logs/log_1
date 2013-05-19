@@ -1,0 +1,53 @@
+# Log starts 2013-05-10 09:50:45.382246
+# white : @network:(None, 4600)
+# black : @network:(None, 4601)
+# Initial board
+black unknown ['rook', '?queen'] at 0,0
+black unknown ['pawn', '?pawn'] at 0,1
+white unknown ['pawn', '?knight'] at 0,6
+white unknown ['rook', '?pawn'] at 0,7
+black unknown ['knight', '?bishop'] at 1,0
+black unknown ['pawn', '?pawn'] at 1,1
+white unknown ['pawn', '?knight'] at 1,6
+white unknown ['knight', '?rook'] at 1,7
+black unknown ['bishop', '?bishop'] at 2,0
+black unknown ['pawn', '?pawn'] at 2,1
+white unknown ['pawn', '?pawn'] at 2,6
+white unknown ['bishop', '?pawn'] at 2,7
+black king ['king', 'king'] at 3,0
+black unknown ['pawn', '?pawn'] at 3,1
+white unknown ['pawn', '?pawn'] at 3,6
+white king ['king', 'king'] at 3,7
+black unknown ['queen', '?rook'] at 4,0
+black unknown ['pawn', '?knight'] at 4,1
+white unknown ['pawn', '?pawn'] at 4,6
+white unknown ['queen', '?queen'] at 4,7
+black unknown ['bishop', '?rook'] at 5,0
+black unknown ['pawn', '?pawn'] at 5,1
+white unknown ['pawn', '?pawn'] at 5,6
+white unknown ['bishop', '?rook'] at 5,7
+black unknown ['knight', '?knight'] at 6,0
+black unknown ['pawn', '?pawn'] at 6,1
+white unknown ['pawn', '?pawn'] at 6,6
+white unknown ['knight', '?bishop'] at 6,7
+black unknown ['rook', '?pawn'] at 7,0
+black unknown ['pawn', '?pawn'] at 7,1
+white unknown ['pawn', '?pawn'] at 7,6
+white unknown ['rook', '?bishop'] at 7,7
+# Start game
+2013-05-10 09:50:54.310819 : 4 6 1 pawn
+2013-05-10 09:50:55.481921 : 4 6 -> 4 4
+2013-05-10 09:50:57.309623 : 3 1 1 pawn
+2013-05-10 09:50:58.103761 : 3 1 -> 3 3
+2013-05-10 09:51:33.678172 : 5 6 0 pawn
+2013-05-10 09:51:34.228357 : 5 6 -> 5 5
+2013-05-10 09:51:37.401411 : 4 1 1 knight
+2013-05-10 09:51:38.490964 : 4 1 -> 5 3
+2013-05-10 09:51:40.679271 : 4 7 0 queen
+2013-05-10 09:51:41.963620 : 4 7 -> 7 4
+2013-05-10 09:51:44.292005 : 3 0 0 king
+2013-05-10 09:51:44.975591 : 3 0 -> 4 1
+2013-05-10 09:51:47.471950 : 7 4 0 queen
+2013-05-10 09:51:51.777611 : 7 4 -> 4 1
+2013-05-10 09:51:52.278222 : white
+# EOF

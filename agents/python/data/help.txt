@@ -1,0 +1,135 @@
+NAME
+	qchess.py - Play quantum chess
+
+SYNOPSIS
+	qchess.py [OPTIONS] [white] [black]
+
+DESCRIPTION
+	An implementation of Quantum Chess as originally described and implemented here:
+	http://research.cs.queensu.ca/Parallel/QuantumChess/QuantumChess.html
+
+	Reimplemented for UCC::Progcomp 2013
+	http://progcomp.ucc.asn.au
+
+	IMPORTANT:
+	 - This version does not implement castling or en passen rules.
+	 - If a piece currently in a pawn state moves into the opposing back row, that state always becomes a queen.
+	    - (The other state of the piece is unaffected).
+
+
+ARGUMENTS
+
+	If no arguments are given, a window should appear asking you to pick each player.
+	Then the game will commence using default values.
+
+	white, black
+		Each of the two players in order. They need not be provided if graphics is enabled (default).
+		
+		Any arguments that do not begin with a hyphen (-) are treated as the player arguments in the order they appear.
+
+		Player arguments that begin with '@' are treated as special players:
+
+		@human
+			A human player; if graphics are enabled, this players turns are made through the GUI
+
+		@network[:address]
+			A player over a network connection. 
+
+			For example, if black@host1 wants to play white@host2:
+
+			black@host1:~$ ./qchess.py @network @human
+			white@host2:~$ ./qchess.py @human @network:host1
+
+			IMPORTANT: Only ONE of the games should give the other's address.
+
+		@internal:name
+			An internal agent player
+
+			These agents run within the qchess program (unless there is a timeout setting... never mind).
+			
+			Choices are:
+			
+			AgentRandom - Makes random moves only
+
+			AgentBishop - Uses probability estimates and a min/max recursive (depth is only one) algorithm
+				    - Will usually take a long time to run
+
+OPTIONS
+
+	--help
+		Print this page
+	
+	--graphics
+		Enable the GUI
+
+		If graphics are enabled (default), then the user will be prompted to choose any of the two players not supplied as arguments.
+
+	--no-graphics
+		Disable the GUI
+		
+		
+	--reveal
+		If graphics are enabled, the two states for pieces will always be shown, regardless of whether both states have been revealed.
+		Note that this switch only affects the GUI and does not provide any information to agent players.
+
+		If graphics are disabled, has no effect.
+
+	--file[=filename][:events]
+		Replay a game saved in file, or read from stdin if no filename given
+		If a number of events is supplied, the game will advance that many events before stopping.
+
+		If no players are given, the GUI will NOT ask for player selections.
+		The game will exit after the replay finishes. Events in the replay will be subject to the normal delay (see --delay).
+
+		If black and white players are supplied, the game will continue using those players.
+		In this case, there will be no delays between events in the replay (the game starts at the end of the replay)
+
+		(We hope that) this feature will be useful for comparing how different versions of an agent respond to the same situation.
+
+	--log[=filename]
+		Log moves to a file or stdout if no filename given
+
+		
+
+	--delay[=time]
+		The game pauses between moves so that it can be followed by a human observer.
+		This option can be used to change the delay. If no time is given, the delay is disabled.
+
+		If graphics are enabled (default), the delay is 0.5s by default.
+		If graphics are disabled, there is no delay unless this option is used.
+
+	--timeout[=time]
+		Set the maximum time in seconds to wait before declaring an AI program unresponsive.
+		If no time is given, the timeout is disabled.
+
+		By default the timeout is disabled.
+		
+	--blackout[=time]
+		Setting a blackout time will cause the display to become black if the mouse is not moved and no keys or buttons are pressed.
+		If no time is given, the blackout time is disabled.
+		
+		By default the blackout is disabled.
+		
+		This switch was introduced for entirely obscure purposes.
+
+	--classical
+		If this option is used, the game will treat pieces "classically", ie: as in standard chess.
+		Note that the game does not enforce rules related to check and checkmate.
+
+	--quantum
+		The game uses the quantum chess representation of pieces (default).
+
+	
+AUTHOR
+	Written for the UCC Programming Competition 2013 by Sam Moore.
+	UCC::Progcomp home page: http://progcomp.ucc.asn.au
+
+REPORTING BUGS
+	Report bugs to matches@ucc.asn.au
+	Join IRC channel #progcomp on irc://irc.ucc.asn.au
+
+COPYRIGHT
+	Copyright 2013 The University Computer Club, Inc.
+
+	Contact committee@ucc.asn.au
+

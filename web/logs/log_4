@@ -1,0 +1,47 @@
+# Log starts 2013-05-18 18:28:48.231038
+# white : @network:(None, 4606)
+# black : @network:(None, 4607)
+# Initial board
+black unknown ['rook', '?bishop'] at 0,0
+black unknown ['pawn', '?pawn'] at 0,1
+white unknown ['pawn', '?bishop'] at 0,6
+white unknown ['rook', '?rook'] at 0,7
+black unknown ['knight', '?knight'] at 1,0
+black unknown ['pawn', '?knight'] at 1,1
+white unknown ['pawn', '?pawn'] at 1,6
+white unknown ['knight', '?rook'] at 1,7
+black unknown ['bishop', '?queen'] at 2,0
+black unknown ['pawn', '?pawn'] at 2,1
+white unknown ['pawn', '?pawn'] at 2,6
+white unknown ['bishop', '?knight'] at 2,7
+black king ['king', 'king'] at 3,0
+black unknown ['pawn', '?pawn'] at 3,1
+white unknown ['pawn', '?pawn'] at 3,6
+white king ['king', 'king'] at 3,7
+black unknown ['queen', '?rook'] at 4,0
+black unknown ['pawn', '?pawn'] at 4,1
+white unknown ['pawn', '?pawn'] at 4,6
+white unknown ['queen', '?knight'] at 4,7
+black unknown ['bishop', '?rook'] at 5,0
+black unknown ['pawn', '?pawn'] at 5,1
+white unknown ['pawn', '?pawn'] at 5,6
+white unknown ['bishop', '?pawn'] at 5,7
+black unknown ['knight', '?pawn'] at 6,0
+black unknown ['pawn', '?pawn'] at 6,1
+white unknown ['pawn', '?pawn'] at 6,6
+white unknown ['knight', '?bishop'] at 6,7
+black unknown ['rook', '?bishop'] at 7,0
+black unknown ['pawn', '?pawn'] at 7,1
+white unknown ['pawn', '?pawn'] at 7,6
+white unknown ['rook', '?queen'] at 7,7
+# Start game
+2013-05-18 18:28:51.646758 : 5 6 1 pawn
+2013-05-18 18:28:52.548055 : 5 6 -> 5 4
+2013-05-18 18:28:56.728446 : 0 1 1 pawn
+2013-05-18 18:28:57.297094 : 0 1 -> 0 2
+2013-05-18 18:28:58.898872 : 5 4 0 pawn
+2013-05-18 18:28:59.420966 : 5 4 -> 5 3
+2013-05-18 18:29:03.940562 : 7 1 0 pawn
+2013-05-18 18:29:04.499325 : 7 1 -> 7 2
+2013-05-18 18:29:10.454964 : network terminate
+# EOF
