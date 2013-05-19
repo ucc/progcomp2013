@@ -663,10 +663,15 @@ def open_fifo(name, mode, timeout=None):
 		def __init__(self):
 			threading.Thread.__init__(self)
 			self.result = None
+			self.exception = None
 
 			
 		def run(self):		
-			self.result = open(name, mode)
+			try:
+				self.result = open(name, mode)
+			except Exception, e:
+				self.exception = e
+				self.result = None
 		
 
 	w = Worker()
@@ -676,16 +681,22 @@ def open_fifo(name, mode, timeout=None):
 	while time.time() - start < timeout:
 		if w.is_alive() == False:
 			w.join()
+			if w.exception != None:
+				raise w.exception
 			return w.result
 		time.sleep(0.1)
 	
 	
 	if w.is_alive():
 		#sys.stderr.write("FIFO_TIMEOUT!\n")
-		if mode == "r":
-			f = open(name, "w")
-		else:
-			f = open(name, "r")
+		# Recursive to deal with possible race condition
+		try:
+			if mode == "r":
+				f = open_fifo(name, "w", 1)
+			else:
+				f = open_fifo(name, "r", 1)
+		except:
+			pass
 			
 		#sys.stderr.write("Opened other end!\n")
 		while w.is_alive():
@@ -697,6 +708,8 @@ def open_fifo(name, mode, timeout=None):
 		raise Exception("FIFO_TIMEOUT")
 	else:
 		w.join()
+		if w.exception != None:
+			raise w.exception
 		return w.result
 	
 
@@ -1792,7 +1805,7 @@ class GameThread(StoppableThread):
 				except Exception,e:
 				#if False:
 					result = e.message
-					#sys.stderr.write(result + "\n")
+					sys.stderr.write("qchess.py exception: "+result + "\n")
 					
 					self.stop()
 					
@@ -2974,4 +2987,4 @@ if __name__ == "__main__":
 		
 
 # --- main.py --- #
-# EOF - created from make on Sun May 19 00:54:03 WST 2013
+# EOF - created from make on Sun May 19 12:36:10 WST 2013

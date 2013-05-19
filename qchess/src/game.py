@@ -147,7 +147,7 @@ class GameThread(StoppableThread):
 				except Exception,e:
 				#if False:
 					result = e.message
-					#sys.stderr.write(result + "\n")
+					sys.stderr.write("qchess.py exception: "+result + "\n")
 					
 					self.stop()
 					
