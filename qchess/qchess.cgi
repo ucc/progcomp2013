@@ -71,6 +71,10 @@ def open_fifo(name, mode, timeout=None):
 			raise w.exception
 		return w.result
 
+def force_quit():
+	os.remove(path+client+".in")
+	os.remove(path+client+".out")
+
 def quit():
 	
 	if os.path.exists(path+client+".in") and os.path.exists(path+client+".out"):
@@ -105,7 +109,7 @@ def quit():
 
 
 def main(argv):
-	print "Content-Type: text/plain\r\n\r\n"
+	print "Content-Type: text/plain\r\n" #Removed the second new line. Makes parsing everything easier ~BG3
 	
 	global client
 	form = cgi.FieldStorage()
@@ -137,7 +141,11 @@ def main(argv):
 		x = int(form["x"].value)
 		y = int(form["y"].value)
 	except:
-		
+		if request == "force_quit":
+			force_quit()
+			quit()
+			return 0
+
 		if os.path.exists(path+client+".in") and os.path.exists(path+client+".out"):
 			if request == "quit":
 				print "Quit."
@@ -150,7 +158,7 @@ def main(argv):
 			print "New game."
 			args = path+"qchess.py --no-graphics"
 			if mode == None or mode == "bishop":
-				args += " @fifo:../qchess-cgi-data/"+client+" @internal:AgentBishop"
+				args += " @fifo:../qchess-cgi-data/"+client+" @internal:AgentBishop --log=../qchess-cgi-data/"+client+".log"
 			if mode == "random":
 				args += " @fifo:../qchess-cgi-data/"+client+" @internal:AgentRandom"
 			elif mode == "eigengame":
