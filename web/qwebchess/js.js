@@ -5,24 +5,37 @@
 pieceSelected = ""; // currently selected piece
 piece = "";
 colour = "W"; // colour of this player
+canClick = true;
 
 // Unicode representations of chess pieces
 pieceChar = {"W" : { "p" : "\u2659", "h" : "\u2658", "b" : "\u2657", "r" : "\u2656", "q" : "\u2655", "k" : "\u2654", "?" : "?"},
 	     "B" : { "p" : "\u265F", "h" : "\u265E", "b" : "\u265D", "r" : "\u265C", "q" : "\u265B", "k" : "\u265A", "?" : "?"}};
 
+emptyHTML = "<!--0-->&nbsp; <big> <bold>&nbsp;</bold> </big> &nbsp;"
+
 // Select (or move) a piece
 function selectPiece(loc) {
+	if (!canClick)
+		return;
+
 	x = (""+loc).charAt(1);
 	y = (""+loc).charAt(0);
 	//alert(loc);
 
 	// work out whether to select or move based on the comment tag for the clicked location
 	// It is either "<!--W-->" (white; select) or <!--B-->" (black) or "<!--0-->" (empty)
-	if (pieceSelected == "") {
-		if (document.getElementById(loc).innerHTML.charAt(4) == colour) {
+	if (pieceSelected == "") 
+	{
+		square = document.getElementById(loc);
+		if (square.innerHTML.charAt(4) == colour) 
+		{
 			console.log("Piece Selected: " + loc);
 			pieceSelected = loc;
 			ajaxUpdate("x=" + x + "&y=" + y);
+			if ((+x + +y) % 2 == 0)
+				square.style.background = "#DFD";
+			else
+				square.style.background = "#8F8";
 		}
 	}
 	else {
@@ -38,19 +51,33 @@ function selectPiece(loc) {
 	}
 }
 
+function resetColour(loc)
+{
+	square = document.getElementById(loc);
+	if ((+loc[loc.length-1] + +loc[loc.length-2]) % 2 == 0)
+		square.style.background = "#FFF";
+	else
+		square.style.background = "#DDD";
+		
+}
+
 function validMove(start, piece, end) {
 	return true;
 }
 
 function doMove(start, end) {
-	begin = document.getElementById(start);
-	end = document.getElementById(end);
-	htmlToMove = begin.innerHTML;
-	end.innerHTML = htmlToMove;
-	begin.innerHTML = "<!--0--> <p>&nbsp;</p>";
+	alert("doMove("+start+","+end+")");
+	s1 = document.getElementById(start);
+	s2 = document.getElementById(end);
+	s2.innerHTML = s1.innerHTML;
+	s1.innerHTML = emptyHTML;
 
-	if (end[end.length-1] % 2 == 0)
-		end.innerHTML.replace(/<big>.*<\/big>/i, "<big>?</big>");
+	resetColour(start);
+
+	if ((+end[end.length-1] + +end[end.length-2]) % 2 == 1)
+	{
+		s2.innerHTML = s2.innerHTML.replace(/<bold>.*<\/bold>/i, "<bold>?</bold>");
+	}
 	//console.log("Piece Moved");
 }
 
@@ -61,12 +88,8 @@ function boardLoad() {
 	
 	for (i = 0; i < 8; i++) {
 		for (j = 0; j < 8; j++) {
-			e = i + "" + j;
-			elem = document.getElementById(e)
-			if ((i + j) % 2 == 0)
-				elem.style.background="#FFF";
-			else
-				elem.style.background="#DDD";
+			e = ""+i + "" + j;
+			resetColour(e);
 		}
 	}
 	
@@ -99,7 +122,7 @@ function boardLoad() {
 		for (j = 2; j < 6; j++)
 		{
 			square = document.getElementById(""+j + i);
-			square.innerHTML = "<!--0--> <p>&nbsp;</p>";
+			square.innerHTML = emptyHTML;
 		}
 	}
 	
@@ -141,20 +164,28 @@ function ajaxUpdate(queryString) {
 			for (var i = 0; i < lines.length; ++i)
 			{
 				tokens = lines[i].split(" ")
+				x = Number(tokens[0]);
 
 				if (isNaN(tokens[0]) || isNaN(tokens[1]))
 					continue;
 
-				pieceSelected = ""+tokens[1]+""+tokens[0];
-                                square = document.getElementById(pieceSelected);
-                                html = square.innerHTML;
-				c = html.charAt(4);
-				if (tokens[2] == "->" && document.getElementById(""+tokens[4] + "" + tokens[3]).innerHTML.charAt(4) != colour)
+                                var s1 = document.getElementById("" + tokens[1] + "" + tokens[0]);
+				var s2 = document.getElementById("" + tokens[4] + "" + tokens[3]);
+				if (tokens[2] == "->" && s1.innerHTML.charAt(4) != '0')
 				{
-					doMove(""+tokens[1] + "" + tokens[0], ""+tokens[4] + "" + tokens[3]);
+					canClick = false;
+					if ((+tokens[0] + +tokens[1]) % 2 == 0)
+						s1.style.background = "#DFD";
+					else
+						s1.style.background = "#8F8";
+
+					var doThisMove = function(start, end) {doMove(start, end); canClick = true;}(""+tokens[1]+""+tokens[0], ""+tokens[4]+""+tokens[3]);
+					setTimeout(function() {doThisMove(); canClick = true;}, 500);
 				}
 				else if (tokens.length == 4 && !isNaN(tokens[0]) && !isNaN(tokens[1]) && !isNaN(tokens[2]) && isNaN(tokens[3]))
 				{
+					html = s1.innerHTML;
+					c = html.charAt(4);
 					piece = tokens[3];
 					if (piece == "knight") //HACK
 						piece = "h";	
@@ -163,8 +194,7 @@ function ajaxUpdate(queryString) {
 					if (tokens[2] == "1")
 						html[html.length-1] = pieceChar[c][piece];
 
-					square.innerHTML = html.replace(/<big> <bold>.*<\/bold> <\/big>/i, "<big> <bold>"+pieceChar[c][piece]+"</bold> </big>");	
-					console.log("innerHTML = " + square.innerHTML);
+					s1.innerHTML = html.replace(/<bold>.*<\/bold>/i, "<bold>"+pieceChar[c][piece]+"</bold>");	
 				}
 			}
 
