@@ -87,7 +87,10 @@ $(document).ready(function()
 		}
 		
 		if (legal)
+		{
+			canClick = false;
 			$.ajax({url : "/cgi-bin/qchess.cgi", data : {x : id[0], y : id[1]}}).done(function(data) {$(this).update(data)});
+		}
 	});
 
 	$.fn.showMoves = function()
@@ -213,7 +216,7 @@ $(document).ready(function()
 		$(this).html(emptyHTML);
 
 		// Collapse into quantum state if on a black square
-		if ((dest.getX() + dest.getY()) % 2 != 0 && (dest.html()[0] == '?' || dest.html()[dest.html().length-1] == '?'))
+		if ((dest.getX() + dest.getY()) % 2 != 0 && (dest.html()[0] == '?' || dest.html()[dest.html().length-1] != dest.html()[0]))
 		{
 			oldHTML = dest.html();
 			dest.html(oldHTML.replace(/<bold>.*<\/bold>/i, "<bold>?</bold>"));
@@ -225,6 +228,7 @@ $(document).ready(function()
 	{
 		console.log("AJAX Response:\n"+data);
 		var lines = data.split("\n");
+		var timeout = false;
 		for (var i = 0; i < lines.length; ++i)
 		{
 			var tokens = lines[i].split(" ");
@@ -237,7 +241,7 @@ $(document).ready(function()
 					if (s1.html()[4] != '0')
 					{
 						s2 = $("#board").find("#"+tokens[3]+tokens[4]);
-						canClick = false;
+						timeout = true;
 						setTimeout((function(x) 
 						{
 							return function() 
@@ -296,6 +300,8 @@ $(document).ready(function()
 					break;
 			}
 		}
+		if (timeout == false)
+			canClick = true;
 	}
 
 	//Reset the colour of a square
