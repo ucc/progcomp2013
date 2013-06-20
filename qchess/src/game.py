@@ -15,11 +15,10 @@ class GameThread(StoppableThread):
 		self.cond = threading.Condition() # conditional for some reason, I forgot
 		self.final_result = ""
 		self.server = server
+		self.retry_illegal = False
 		
 		
-			
-		
-		
+	
 
 	# Run the game (run in new thread with start(), run in current thread with run())
 	def run(self):
@@ -146,14 +145,17 @@ class GameThread(StoppableThread):
 						break
 				except Exception,e:
 				#if False:
+
+					
 					result = e.message
-					sys.stderr.write("qchess.py exception: "+result + "\n")
-					
-					self.stop()
-					
-					with self.lock:
-						self.final_result = self.state["turn"].colour + " " + e.message
-					break
+					if self.retry_illegal:
+						self.state["turn"].update(result);
+					else:
+						sys.stderr.write("qchess.py exception: "+result + "\n")
+						self.stop()
+						with self.lock:
+							self.final_result = self.state["turn"].colour + " " + e.message
+						break
 
 
 

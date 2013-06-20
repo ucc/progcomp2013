@@ -890,9 +890,11 @@ class HumanPlayer(Player):
 				sys.stdout.write("SELECTION?\n")
 				try:
 					p = map(int, sys.stdin.readline().strip("\r\n ").split(" "))
+					return p
 				except:
 					sys.stderr.write("ILLEGAL GIBBERISH\n")
 					continue
+
 	# It's your move captain
 	def get_move(self):
 		if isinstance(graphics, GraphicsThread):
@@ -908,6 +910,7 @@ class HumanPlayer(Player):
 				sys.stdout.write("MOVE?\n")
 				try:
 					p = map(int, sys.stdin.readline().strip("\r\n ").split(" "))
+					return p
 				except:
 					sys.stderr.write("ILLEGAL GIBBERISH\n")
 					continue
@@ -1673,11 +1676,10 @@ class GameThread(StoppableThread):
 		self.cond = threading.Condition() # conditional for some reason, I forgot
 		self.final_result = ""
 		self.server = server
+		self.retry_illegal = False
 		
 		
-			
-		
-		
+	
 
 	# Run the game (run in new thread with start(), run in current thread with run())
 	def run(self):
@@ -1804,14 +1806,17 @@ class GameThread(StoppableThread):
 						break
 				except Exception,e:
 				#if False:
+
+					
 					result = e.message
-					sys.stderr.write("qchess.py exception: "+result + "\n")
-					
-					self.stop()
-					
-					with self.lock:
-						self.final_result = self.state["turn"].colour + " " + e.message
-					break
+					if self.retry_illegal:
+						self.state["turn"].update(result);
+					else:
+						sys.stderr.write("qchess.py exception: "+result + "\n")
+						self.stop()
+						with self.lock:
+							self.final_result = self.state["turn"].colour + " " + e.message
+						break
 
 
 
@@ -2701,6 +2706,7 @@ def main(argv):
 	global sleep_timeout
 
 
+	retry_illegal = False
 	server_addr = None
 
 	max_moves = None
@@ -2798,7 +2804,8 @@ def main(argv):
 				sleep_timeout = -1
 			else:
 				sleep_timeout = float(arg[2:].split("=")[1])
-				
+		elif (arg[1] == '-' and arg[2:] == "retry-illegal"):
+			retry_illegal = not retry_illegal
 		elif (arg[1] == '-' and arg[2:] == "help"):
 			# Help
 			os.system("less data/help.txt") # The best help function
@@ -2845,6 +2852,7 @@ def main(argv):
 		board = Board(style)
 		board.max_moves = max_moves
 		game = GameThread(board, players) 
+		game.retry_illegal = retry_illegal
 
 
 
@@ -2987,4 +2995,4 @@ if __name__ == "__main__":
 		
 
 # --- main.py --- #
-# EOF - created from make on Sun May 19 12:36:10 WST 2013
+# EOF - created from make on Thursday 20 June  18:09:07 WST 2013

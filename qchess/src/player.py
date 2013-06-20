@@ -265,9 +265,11 @@ class HumanPlayer(Player):
 				sys.stdout.write("SELECTION?\n")
 				try:
 					p = map(int, sys.stdin.readline().strip("\r\n ").split(" "))
+					return p
 				except:
 					sys.stderr.write("ILLEGAL GIBBERISH\n")
 					continue
+
 	# It's your move captain
 	def get_move(self):
 		if isinstance(graphics, GraphicsThread):
@@ -283,6 +285,7 @@ class HumanPlayer(Player):
 				sys.stdout.write("MOVE?\n")
 				try:
 					p = map(int, sys.stdin.readline().strip("\r\n ").split(" "))
+					return p
 				except:
 					sys.stderr.write("ILLEGAL GIBBERISH\n")
 					continue

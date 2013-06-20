@@ -1,11 +1,12 @@
-//progcomp.ucc.asn.au/cgi-bin/qchess.cgi?r=start
-//progcomp.ucc.asn.au/cgi-bin/qchess.cgi?r=quit
-//progcomp.ucc.asn.au/cgi-bin/qchess.cgi?x=X&y=Y (0 indexed)
+/**
+ * qwebchess.js
+ * jQuery interface for Quantum Chess
+ *
+ * @authors Sam Moore and Mitch Pomery
+ */
 
 pieceSelected = ""; // currently selected piece
-piece = "";
-colour = "W"; // colour of this player
-canClick = true;
+playerColour = "W"; // colour of this player
 
 // Unicode representations of chess pieces
 pieceChar = {"W" : { "p" : "\u2659", "h" : "\u2658", "b" : "\u2657", "r" : "\u2656", "q" : "\u2655", "k" : "\u2654", "?" : "?"},
@@ -13,250 +14,393 @@ pieceChar = {"W" : { "p" : "\u2659", "h" : "\u2658", "b" : "\u2657", "r" : "\u26
 
 emptyHTML = "<!--0-->&nbsp; <big> <bold>&nbsp;</bold> </big> &nbsp;"
 
-// Select (or move) a piece
-function selectPiece(loc) {
-	if (!canClick)
-		return;
+gameStarted = false;
+canClick = true;
 
-	x = (""+loc).charAt(1);
-	y = (""+loc).charAt(0);
-	//alert(loc);
-
-	// work out whether to select or move based on the comment tag for the clicked location
-	// It is either "<!--W-->" (white; select) or <!--B-->" (black) or "<!--0-->" (empty)
-	if (pieceSelected == "") 
-	{
-		square = document.getElementById(loc);
-		if (square.innerHTML.charAt(4) == colour) 
-		{
-			console.log("Piece Selected: " + loc);
-			pieceSelected = loc;
-			ajaxUpdate("x=" + x + "&y=" + y);
-			if ((+x + +y) % 2 == 0)
-				square.style.background = "#DFD";
-			else
-				square.style.background = "#8F8";
-		}
-	}
-	else {
-		//alert("pieceMoved");
-		if (validMove(pieceSelected, piece, loc)) {
-			doMove(pieceSelected, loc);
-			ajaxUpdate("x=" + x + "&y=" + y);
-			pieceSelected = "";
-		}
-		else {
-			console.log("Invalid Move");
-		}
-	}
-}
-
-function resetColour(loc)
+// jQuery foo goes in here
+$(document).ready(function()
 {
-	square = document.getElementById(loc);
-	if ((+loc[loc.length-1] + +loc[loc.length-2]) % 2 == 0)
-		square.style.background = "#FFF";
-	else
-		square.style.background = "#DDD";
-		
-}
-
-function validMove(start, piece, end) {
-	return true;
-}
-
-function doMove(start, end) {
-	alert("doMove("+start+","+end+")");
-	s1 = document.getElementById(start);
-	s2 = document.getElementById(end);
-	s2.innerHTML = s1.innerHTML;
-	s1.innerHTML = emptyHTML;
-
-	resetColour(start);
-
-	if ((+end[end.length-1] + +end[end.length-2]) % 2 == 1)
+	// Click the start/quit button
+	$("#start").click(function() 
 	{
-		s2.innerHTML = s2.innerHTML.replace(/<bold>.*<\/bold>/i, "<bold>?</bold>");
-	}
-	//console.log("Piece Moved");
-}
-
-function boardLoad() {
-	ajaxUpdate("r=force_quit");
-	
-	
-	
-	for (i = 0; i < 8; i++) {
-		for (j = 0; j < 8; j++) {
-			e = ""+i + "" + j;
-			resetColour(e);
-		}
-	}
-	
-	//Place pieces on the board
-	for (i = 0; i < 8; i++) {
-		black = document.getElementById("1" + i);
-		white = document.getElementById("6" + i);
-		//pawns
-		black.innerHTML = "<!--B--> " + pieceChar["B"]["p"] + " <big> <bold>?</bold> </big> ?";
-		white.innerHTML = "<!--W--> " + pieceChar["W"]["p"] + " <big> <bold>?</bold> </big> ?";
-		
-		black = document.getElementById("0" + i);
-		white = document.getElementById("7" + i);
-		piece = "p";
-		if (i == 0 || i == 7)
-			piece = "r";
-		if (i == 1 || i == 6)
-			piece = "h";
-		if (i == 2 || i == 5)
-			piece = "b";
-		if (i == 3)
-			piece = "k";
-		if (i == 4)
-			piece = "q";
-		//major pieces
-		black.innerHTML = "<!--B--> " + pieceChar["B"][piece] + "<big> <bold>?</bold> </big> ?";
-		white.innerHTML = "<!--W--> " + pieceChar["W"][piece] + "<big> <bold>?</bold> </big> ?";
-
-		// empty squares
-		for (j = 2; j < 6; j++)
+		if (gameStarted === false)
 		{
-			square = document.getElementById(""+j + i);
-			square.innerHTML = emptyHTML;
+			gameStarted = true;
+			$("#board").boardLoad();
+			$("#welcome").hide();
+			$("#status").show();
+			$("#status").html("white SELECT?");
+			$("#start").html("Quit Game");
+			pieceSelected = "";
+			canClick = true;
+			$.ajax({url : "/cgi-bin/qchess.cgi", data : {r : "force_quit"}, success : function() {}});
+			$.ajax({url : "/cgi-bin/qchess.cgi", data : {r : "start"}}).done(function(data) {$(this).update(data)});
+		
+				
 		}
-	}
+		else
+		{
+			gameStarted = false;
+			$("#welcome").show();
+			$("#status").html("Game over");
+			$("#start").html("New Game");
+			$.ajax({url : "/cgi-bin/qchess.cgi", data : {r : "quit"}, success : function() {console.log("Quit game");}});
+		}
+	});
+
+	// bind click event to table cells
+	$("#board").on('click', 'td' , function(e)
+	{
+		if (canClick === false)
+			return;
 	
-	setTimeout(function(){ajaxUpdate("r=start");}, 1000);
-}
+		var id = $(this).attr("id");	
+		legal = true;
+		if (pieceSelected === "")
+		{
+			if ($(this).legalSelection())
+			{
+				pieceSelected = id;
+				$(this).setSquareColour("blue");
+			}
+			else
+			{
+				legal = false;
+				alert("Illegal selection " + id);
+			}
+		}
+		else
+		{
+			mover = $("#board").find("#"+pieceSelected);
+			if (mover.legalMove($(this)))
+			{
+				$("#status").html(colourString(otherColour(mover.getColour())) + " SELECT?");
+				mover.move($(this));
+				pieceSelected = "";
+				$("#board td").each(function() {$(this).setSquareColour("default");});
+			}
+			else
+			{
+				legal = false;
+				alert("Illegal move " + id);
+			}
+		}
+		
+		if (legal)
+			$.ajax({url : "/cgi-bin/qchess.cgi", data : {x : id[0], y : id[1]}}).done(function(data) {$(this).update(data)});
+	});
 
-//AJAX Stuff
-function ajaxUpdate(queryString) {
-	var ajaxRequest;  // The variable that makes Ajax possible!
+	$.fn.showMoves = function()
+	{
+		$(this).setSquareColour("green");
+		var that = $(this); //Look [DJA]! I used it!
+		$("#board td").each(function()
+		{
+			if (that.legalMove($(this)) === true) // See?
+			{
+				//alert("Legal move from " + that.attr("id") + " -> " + $(this).attr("id"));
+				$(this).setSquareColour("red");
+			}
+		});
+		
+	}
 
-	try {
-		// Opera 8.0+, Firefox, Safari
-		ajaxRequest = new XMLHttpRequest();
-	} catch (e) {
-		// Internet Explorer Browsers
-		try {
-			ajaxRequest = new ActiveXObject("Msxml2.XMLHTTP");
-		} catch (e) {
-			try {
-				ajaxRequest = new ActiveXObject("Microsoft.XMLHTTP");
-			} catch (e) {
-				// Something went wrong
-				alert("Your Browser is not Ajax Compatible, Please Upgrade to Google Chrome.");
+	// Get colour of occupied square
+	// W - white
+	// B - black
+	// 0 - unoccupied
+	$.fn.getColour = function()
+	{
+		return $(this).html()[4]; // yeah, I know this is horrible, so sue me
+	}
+
+	// Get type of piece
+	$.fn.getType = function()
+	{
+		return $(this).html().match(/<bold>(.*)<\/bold>/)[1]; // again, I know it's horrible, so sue me
+	}
+
+	// Get coords
+	$.fn.getX = function() {return Number($(this).attr("id")[0]);}
+	$.fn.getY = function() {return Number($(this).attr("id")[1]);}
+	
+	// Check a square is a valid selection
+	$.fn.legalSelection = function()
+	{
+		return ($(this).getColour() == playerColour);
+	}
+
+	// determine whether a piece can move into another square
+	$.fn.legalMove = function(target)
+	{
+		if (target.getColour() == $(this).getColour())
+			return false;
+		if (target.getX() == $(this).getX() && target.getY() == $(this).getY())
+			return false;
+		switch ($(this).getType())
+		{
+			case pieceChar["W"]['p']:
+				if ($(this).getY() == 6 && target.getY() == 4 && $(this).getX() == target.getX() && target.getColour() == '0')
+					return true;
+				if ($(this).getY() - target.getY() != 1 || Math.abs($(this).getX() - target.getX()) > 1)
+					return false;
+				return ($(this).getX() == target.getX() || target.getColour() != '0');
+
+			case pieceChar["B"]['p']:
+				if ($(this).getY() == 1 && target.getY() == 3 && $(this).getX() == target.getX())
+					return true;
+                                if ($(this).getY() - target.getY() != -1 || Math.abs($(this).getX() - target.getX()) > 1)
+	                                return false;
+                                return ($(this).getX() == target.getX() || target.getColour() != '0');
+
+			case pieceChar["W"]['h']:
+			case pieceChar["B"]['h']:
+				return ((Math.abs($(this).getY() - target.getY()) == 2 && Math.abs($(this).getX() - target.getX()) == 1)
+					|| (Math.abs($(this).getX() - target.getX()) == 2 && Math.abs($(this).getY() - target.getY()) == 1));
+
+			case pieceChar["W"]['k']:
+			case pieceChar["B"]['k']:
+				return (Math.abs($(this).getX() - target.getX()) <= 1 && Math.abs($(this).getY() - target.getY()) <= 1);
+			case pieceChar["W"]['b']:
+			case pieceChar["B"]['b']:
+				//console.log("" + Math.abs($(this).getX() - target.getX()) + " vs " + Math.abs($(this).getY() - target.getY()));
+				if (Math.abs($(this).getX() - target.getX()) != Math.abs($(this).getY() - target.getY()))
+					return false;
+				break;
+			case pieceChar["W"]['r']:
+			case pieceChar["B"]['r']:
+				//console.log("" + Math.abs($(this).getX() - target.getX()) + " vs " + Math.abs($(this).getY() - target.getY()));
+				console.log("Rook");
+				if (Math.abs($(this).getX() - target.getX()) != 0 && Math.abs($(this).getY() - target.getY()) != 0)
+					return false;
+				break;
+			case pieceChar["W"]['q']:
+			case pieceChar["B"]['q']:
+				//console.log("" + Math.abs($(this).getX() - target.getX()) + " vs " + Math.abs($(this).getY() - target.getY()));
+				if (Math.abs($(this).getX() - target.getX()) != Math.abs($(this).getY() - target.getY()))
+				{
+					if (Math.abs($(this).getX() - target.getX()) != 0 && Math.abs($(this).getY() - target.getY()) != 0)
+						return false;
+				}
+				break;
+			default:
+				return false;
+		}
+		console.log("scanning");
+		var vx = ($(this).getX() == target.getX()) ? 0 : (($(this).getX() < target.getX()) ? 1 : -1);
+		var vy = ($(this).getY() == target.getY()) ? 0 : (($(this).getY() < target.getY()) ? 1 : -1);
+		var x = $(this).getX() + vx; var y = $(this).getY() + vy;
+		while ((x != target.getX() || y != target.getY()) && x >= 0 && y >= 0 && x < 8 && y < 8)
+		{
+			var c = $("#"+x+""+y).getColour();
+			if (c === "W" || c === "B")
+			{
+				console.log("Blocked at "+x+""+y);
 				return false;
 			}
-		}
+			else
+				console.log("Scan ok at "+x+""+y);
+			x += vx;
+			y += vy;			
+		}	
+		return true;
 	}
-	
-	//alert(queryString);
-	
-	// Create a function that will receive data sent from the server
-	ajaxRequest.onreadystatechange = function () 
+
+	// Move square to another
+	$.fn.move = function(dest)
 	{
-		//alert("RS" + ajaxRequest.readyState);
-		if (ajaxRequest.readyState == 4) {
-			console.log("AJAX Response: " + ajaxRequest.responseText);
-			lines = ajaxRequest.responseText.split("\n");
+		dest.html($(this).html());
+		$(this).html(emptyHTML);
 
-			for (var i = 0; i < lines.length; ++i)
-			{
-				tokens = lines[i].split(" ")
-				x = Number(tokens[0]);
-
-				if (isNaN(tokens[0]) || isNaN(tokens[1]))
-					continue;
-
-                                var s1 = document.getElementById("" + tokens[1] + "" + tokens[0]);
-				var s2 = document.getElementById("" + tokens[4] + "" + tokens[3]);
-				if (tokens[2] == "->" && s1.innerHTML.charAt(4) != '0')
-				{
-					canClick = false;
-					if ((+tokens[0] + +tokens[1]) % 2 == 0)
-						s1.style.background = "#DFD";
-					else
-						s1.style.background = "#8F8";
-
-					var doThisMove = function(start, end) {doMove(start, end); canClick = true;}(""+tokens[1]+""+tokens[0], ""+tokens[4]+""+tokens[3]);
-					setTimeout(function() {doThisMove(); canClick = true;}, 500);
-				}
-				else if (tokens.length == 4 && !isNaN(tokens[0]) && !isNaN(tokens[1]) && !isNaN(tokens[2]) && isNaN(tokens[3]))
-				{
-					html = s1.innerHTML;
-					c = html.charAt(4);
-					piece = tokens[3];
-					if (piece == "knight") //HACK
-						piece = "h";	
-					else
-						piece = ""+piece.charAt(0);
-					if (tokens[2] == "1")
-						html[html.length-1] = pieceChar[c][piece];
-
-					s1.innerHTML = html.replace(/<bold>.*<\/bold>/i, "<bold>"+pieceChar[c][piece]+"</bold>");	
-				}
-			}
-
-			/*
-			if (ret.charAt(4) == "-" && ret.charAt(5) == ">") {
-				//Piece has been moved
-				//console.log("Moving other piece");
-				lines = ret.split("\n");
-				//if (lines[3] != "SELECT?") {
-				if (lines[2] != "SELECT?") {
-					x1 = lines[2].charAt(0);
-					y1 = lines[2].charAt(2);
-					x2 = lines[2].charAt(7);
-					y2 = lines[2].charAt(9);
-					console.log("Black Move: " + x1 + "" + y1 + " -> " + x2 + "" + y2);
-					doMove(y1 + "" + x1, y2 + "" + x2);
-				}
-				else {
-					console.log("Black Unable to move");
-				}
-			}
-			else {
-				lines = ret.split("\n");
-				if (lines[1] == "MOVE?") {
-					//We selected a piece
-					//console.log("choose where to move our piece");
-					piece = lines[0].charAt(6);
-					//console.log("Piece: " + piece);
-					content = document.getElementById(pieceSelected);
-					contentHTML = content.innerHTML;
-					//contentHTML = contentHTML.replace("?", piece);
-					//"W<br /><small>p</small> <bold>?</bold> <small>?</small></span>";
-					if (lines[0].charAt(4) == "1") {
-						//console.log("changing quantum piece");
-						contentHTML = replaceAt(contentHTML, 44, piece);
-					}
-					contentHTML = replaceAt(contentHTML, 28, piece);
-					//console.log(contentHTML);
-					//contentHTML = "CHANGED" + contentHTML;
-					content.innerHTML = contentHTML;
-				}
-			}
-			*/
-			//alert(ret);
+		// Collapse into quantum state if on a black square
+		if ((dest.getX() + dest.getY()) % 2 != 0 && (dest.html()[0] == '?' || dest.html()[dest.html().length-1] == '?'))
+		{
+			oldHTML = dest.html();
+			dest.html(oldHTML.replace(/<bold>.*<\/bold>/i, "<bold>?</bold>"));
 		}
 	}
-	
-	//ar = "http://progcomp.ucc.asn.au/cgi-bin/qchess.cgi?" + queryString;
-	ar = "/../../../cgi-bin/qchess.cgi?" + queryString;
-	
-	console.log("AJAX Request: " + ar);
-	
-	ajaxRequest.open("GET", ar, true);
-	ajaxRequest.send();
+
+	// Interpret AJAX response
+	$.fn.update = function(data)
+	{
+		console.log("AJAX Response:\n"+data);
+		var lines = data.split("\n");
+		for (var i = 0; i < lines.length; ++i)
+		{
+			var tokens = lines[i].split(" ");
+
+			if (!isNaN(tokens[0]) && !isNaN(tokens[1]))
+			{
+				s1 = $("#board").find("#"+tokens[0]+tokens[1])
+				if (tokens[2] === "->")
+				{
+					if (s1.html()[4] != '0')
+					{
+						s2 = $("#board").find("#"+tokens[3]+tokens[4]);
+						canClick = false;
+						setTimeout((function(x) 
+						{
+							return function() 
+							{
+								s1.move(x);
+								$("#board td").each(function() {$(this).setSquareColour("default");});
+								x.setSquareColour("blue");
+								setTimeout((function(xx) 
+								{
+									return function() 
+									{
+										xx.setSquareColour("default"); canClick = true;
+										$("#status").html(colourString(playerColour) + " SELECT?");
+									};
+								}(x)), 500);
+							};
+						}(s2)), 500);
+					}
+				}
+				else if (tokens.length === 4 && !isNaN(tokens[2]) && isNaN(tokens[3]))
+				{
+					var t = "h";
+					if (tokens[3] != "knight")
+						t = tokens[3][0];
+			
+					var oldHTML = s1.html();
+					var c = s1.getColour();
+					if (tokens[2] == "1")
+					{
+						oldHTML = oldHTML.substring(0, oldHTML.length-1)+pieceChar[c][t];
+					}
+					s1.html(oldHTML.replace(/<bold>.*<\/bold>/i, "<bold>"+pieceChar[c][t]+"</bold>"));
+					//console.log(oldHTML + " ==> " + s1.html());
+					s1.setSquareColour("green");
+					s1.showMoves();
+					$("#status").html(colourString(s1.getColour()) + " MOVE?");
+					
+				}
+			}
+			else switch (lines[i])
+			{
+				case "SELECT?":
+					pieceSelected = "";
+				case "MOVE?":
+				case "":
+				case "New game.":
+					break;
+				default:
+					alert("Game ends: " + lines[i]);
+					gameStarted = false;
+					$("#start").html("New Game");
+					$("#status").html("Game over");
+					//$("#board").html("");
+					
+					
+					break;
+			}
+		}
+	}
+
+	//Reset the colour of a square
+	$.fn.setSquareColour = function(type)
+	{
+		var colour = "000000";
+	        switch (type)
+        	{
+	                case "blue":
+                	        colour = "5555aa";
+        	                break;
+			case "green":
+				colour = "55aa55";
+				break;
+			case "red":
+				colour = "aa5555";
+				break;
+	                default:
+                	        colour = "aaaaaa";
+        	                break;
+	        }
+
+	        id = $(this).attr("id");
+        	if ((Number(id[0]) + Number(id[1])) % 2 == 0)
+	        {	
+        	        colour = addHexColour(colour, "555555");
+	        }
+        	$(this).css("background-color", "#"+colour);
+	}
+
+	// Loads the board
+	$.fn.boardLoad = function()
+	{
+        	boardHTML = "";
+	        for (var y = 0; y < 8; ++y)
+	        {
+                	boardHTML += "<tr id=\"y"+y+"\">";
+        	        for (var x = 0; x < 8; ++x)
+	                {
+                        	boardHTML += "<td id=\""+x+""+y+"\">"+emptyHTML+"</td>";
+                	}
+        	        boardHTML += "</tr>";
+	        }
+        	$(this).html(boardHTML);
+
+	        $(this).find("td").each(function()
+        	{
+	                $(this).setSquareColour("default");
+	        });
+
+		// Add pieces
+		for (var x = 0; x < 8; ++x)
+		{
+			// pawns
+			$(this).find("#"+x+"1").html("<!--B--> "+pieceChar["B"]["p"]+"<big> <bold>?</bold> </big> ?");
+			$(this).find("#"+x+"6").html("<!--W--> "+pieceChar["W"]["p"]+"<big> <bold>?</bold> </big> ?");
+		
+			t = "?";
+			switch (x)
+			{
+				case 0:
+				case 7:
+					t = 'r';
+					break;
+				case 1:
+				case 6:
+					t = 'h';
+					break;
+				case 2:
+				case 5:
+					t = 'b';
+					break;
+				case 4:
+					t = 'q';
+					break;
+			}
+			if (x == 3)
+				continue;
+			$(this).find("#"+x+"0").html("<!--B--> "+pieceChar["B"][t]+"<big> <bold>?</bold> </big> ?");
+			$(this).find("#"+x+"7").html("<!--W--> "+pieceChar["W"][t]+"<big> <bold>?</bold> </big> ?");
+		}
+		t = pieceChar["B"]["k"];
+		$(this).find("#30").html("<!--B--> "+t+"<big> <bold>"+t+"</bold> </big> "+t);
+		t = pieceChar["W"]["k"];
+                $(this).find("#37").html("<!--W--> "+t+"<big> <bold>"+t+"</bold> </big> "+t);
+		
+	}
+
+});
+
+
+// Add two hex colours
+function addHexColour(c1, c2) 
+{
+  var hexStr = (parseInt(c1, 16) + parseInt(c2, 16)).toString(16);
+  while (hexStr.length < 6) { hexStr = '0' + hexStr; } // Zero pad.
+  return hexStr;
 }
 
+function colourString(c)
+{
+	return (c == "W") ? "white" : "black";
+}
 
-
-
-
-
-function replaceAt(s, n, t) {
-	//console.log(s.substring(0, n) + "\n" + t + "\n" + s.substring(n + 1) + "\n");
-	return (s.substring(0, n) + t + s.substring(n + 1));
+function otherColour(c)
+{
+	return (c == "W") ? "B" : "W";
 }

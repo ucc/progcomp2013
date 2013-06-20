@@ -88,6 +88,7 @@ def main(argv):
 	global sleep_timeout
 
 
+	retry_illegal = False
 	server_addr = None
 
 	max_moves = None
@@ -185,7 +186,8 @@ def main(argv):
 				sleep_timeout = -1
 			else:
 				sleep_timeout = float(arg[2:].split("=")[1])
-				
+		elif (arg[1] == '-' and arg[2:] == "retry-illegal"):
+			retry_illegal = not retry_illegal
 		elif (arg[1] == '-' and arg[2:] == "help"):
 			# Help
 			os.system("less data/help.txt") # The best help function
@@ -232,6 +234,7 @@ def main(argv):
 		board = Board(style)
 		board.max_moves = max_moves
 		game = GameThread(board, players) 
+		game.retry_illegal = retry_illegal
 
 
 
