@@ -157,12 +157,16 @@ def main(argv):
 		elif request == "start":
 			print "New game."
 			args = path+"qchess.py --no-graphics"
-			if mode == None or mode == "bishop":
-				args += " @fifo:../qchess-cgi-data/"+client+" @internal:AgentBishop --log=../qchess-cgi-data/"+client+".log"
-			if mode == "random":
+			if mode == "black":
+				args += " @internal:AgentBishop @fifo:../qchess-cgi-data/"+client
+			elif mode == None or mode == "bishop":
+				args += " @fifo:../qchess-cgi-data/"+client+" @internal:AgentBishop"
+			elif mode == "random":
 				args += " @fifo:../qchess-cgi-data/"+client+" @internal:AgentRandom"
 			elif mode == "eigengame":
 				args += " --server=progcomp.ucc.asn.au @fifo:../qchess-cgi-data/"+client
+
+			args += " --log=@../qchess-cgi-data/"+client+".log";
 
 			os.system("echo '"+args+"' | at now")
 

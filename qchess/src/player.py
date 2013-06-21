@@ -97,7 +97,15 @@ class FifoPlayer(Player):
 		Player.__init__(self, name, colour)
 		os.mkfifo(self.name+".in")
 		os.mkfifo(self.name+".out")
-		
+
+		try:
+			self.fifo_out = open_fifo(self.name+".out","w", FifoPlayer.timeout)
+		except:
+			raise Exception("FIFO_TIMEOUT")
+		else:
+			self.fifo_out.write("START "+colour+"\n")
+			self.fifo_out.close()
+
 		
 		
 		

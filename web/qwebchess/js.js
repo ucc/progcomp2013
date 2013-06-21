@@ -6,7 +6,7 @@
  */
 
 pieceSelected = ""; // currently selected piece
-playerColour = "W"; // colour of this player
+playerColour = ""; // colour of this player
 
 // Unicode representations of chess pieces
 pieceChar = {"W" : { "p" : "\u2659", "h" : "\u2658", "b" : "\u2657", "r" : "\u2656", "q" : "\u2655", "k" : "\u2654", "?" : "?"},
@@ -32,9 +32,9 @@ $(document).ready(function()
 			$("#status").html("white SELECT?");
 			$("#start").html("Quit Game");
 			pieceSelected = "";
-			canClick = true;
+			canClick = false;
 			$.ajax({url : "/cgi-bin/qchess.cgi", data : {r : "force_quit"}, success : function() {}});
-			$.ajax({url : "/cgi-bin/qchess.cgi", data : {r : "start"}}).done(function(data) {$(this).update(data)});
+			$.ajax({url : "/cgi-bin/qchess.cgi", data : {r : "start", m : "black"}}).done(function(data) {$(this).update(data)});
 		
 				
 		}
@@ -44,6 +44,7 @@ $(document).ready(function()
 			$("#welcome").show();
 			$("#status").html("Game over");
 			$("#start").html("New Game");
+			canClick = false;
 			$.ajax({url : "/cgi-bin/qchess.cgi", data : {r : "quit"}, success : function() {console.log("Quit game");}});
 		}
 	});
@@ -283,12 +284,25 @@ $(document).ready(function()
 			}
 			else switch (lines[i])
 			{
+	
 				case "SELECT?":
 					pieceSelected = "";
 				case "MOVE?":
 				case "":
 				case "New game.":
 					break;
+				case "START white":
+					if (playerColour == "")
+					{
+						playerColour = "W";
+						break;
+					}
+				case "START black":
+					if (playerColour == "")
+					{
+						playerColour = "B";
+						break;
+					}
 				default:
 					alert("Game ends: " + lines[i]);
 					gameStarted = false;
