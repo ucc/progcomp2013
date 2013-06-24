@@ -20,6 +20,7 @@ sleep_timeout = None
 [game, graphics] = [None, None]
 
 def make_player(name, colour):
+	debug(name)
 	if name[0] == '@':
 		if name[1:] == "human":
 			return HumanPlayer(name, colour)
@@ -110,17 +111,7 @@ def main(argv):
 		i += 1
 		arg = argv[i]
 		if arg[0] != '-':
-			p = make_player(arg, colour)
-			if not isinstance(p, Player):
-				sys.stderr.write(sys.argv[0] + " : Fatal error creating " + colour + " player\n")
-				return 100
-			players.append(p)
-			if colour == "white":
-				colour = "black"
-			elif colour == "black":
-				pass
-			else:
-				sys.stderr.write(sys.argv[0] + " : Too many players (max 2)\n")
+			players.append(arg)
 			continue
 
 		# Option parsing goes here
@@ -205,11 +196,23 @@ def main(argv):
 				sys.stderr.write("Only a single player may be provided when --server is used\n")
 				return 1
 			if len(players) == 1:
-				return client(server_addr, players[0].name)
+				return client(server_addr, players[0])
 			else:
 				return client(server_addr)
 		
-
+	for i in xrange(len(players)):
+		p = make_player(players[i], colour)
+		if not isinstance(p, Player):
+			sys.stderr.write(sys.argv[0] + " : Fatal error creating " + colour + " player\n")
+			return 100
+		players[i] = p
+		if colour == "white":
+			colour = "black"
+		elif colour == "black":
+			pass
+		else:
+			sys.stderr.write(sys.argv[0] + " : Too many players (max 2)\n")
+		
 	# Create the board
 	
 	# Construct a GameThread! Make it global! Damn the consequences!

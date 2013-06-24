@@ -651,6 +651,8 @@ class Player():
 
 	def base_player(self):
 		return self
+
+
 	
 
 
@@ -722,6 +724,7 @@ class FifoPlayer(Player):
 		Player.__init__(self, name, colour)
 		os.mkfifo(self.name+".in")
 		os.mkfifo(self.name+".out")
+			
 
 		try:
 			self.fifo_out = open_fifo(self.name+".out","w", FifoPlayer.timeout)
@@ -731,10 +734,7 @@ class FifoPlayer(Player):
 			self.fifo_out.write("START "+colour+"\n")
 			self.fifo_out.close()
 
-		
-		
-		
-		
+				
 	def update(self, result):
 		sys.stderr.write("update fifo called\n")
 		try:
@@ -780,15 +780,16 @@ class FifoPlayer(Player):
 		try:
 			self.fifo_out = open_fifo(self.name+".out", "w", FifoPlayer.timeout)
 		except:
-			os.remove(self.name+".in")
-			os.remove(self.name+".out")
-			#raise Exception("FIFO_TIMEOUT")
-			
+			pass
 		else:
 			self.fifo_out.write(result + "\n")
 			self.fifo_out.close()
+
+		try:
 			os.remove(self.name+".in")
 			os.remove(self.name+".out")
+		except OSError:
+			pass
 
 # Player that runs from another process
 class ExternalAgent(Player):
@@ -796,6 +797,7 @@ class ExternalAgent(Player):
 
 	def __init__(self, name, colour):
 		Player.__init__(self, name, colour)
+		#raise Exception("waht")
 		self.p = subprocess.Popen(name,bufsize=0,stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True,universal_newlines=True)
 		
 		self.send_message(colour)
@@ -877,6 +879,7 @@ class HumanPlayer(Player):
 	def __init__(self, name, colour):
 		Player.__init__(self, name, colour)
 		
+
 	# Select your preferred account
 	def select(self):
 		if isinstance(graphics, GraphicsThread):
@@ -945,7 +948,8 @@ class InternalAgent(Player):
 
 		self.board = Board(style = "agent")
 
-
+	def argForm(self):
+		return "@internal:"+self.name
 
 	def update(self, result):
 		
@@ -1434,8 +1438,10 @@ class Network():
 		if self.src in ready:
 			s = self.src.recv(1)
 		else:
-			raise Exception("UNRESPONSIVE")
+			raise Exception("NET_UNRESPONSIVE")
 
+
+		debug("Network get_response s = " + str(s))
 
 		while s[len(s)-1] != '\n':
 			# Timeout on each character in the message
@@ -1446,7 +1452,7 @@ class Network():
 			if self.src in ready:
 				s += self.src.recv(1) 
 			else:
-				raise Exception("UNRESPONSIVE")
+				raise Exception("NET_UNRESPONSIVE")
 
 		
 		return s.strip(" \r\n")
@@ -1460,7 +1466,7 @@ class Network():
 		if self.src in ready:
 			self.src.send(s + "\n")
 		else:
-			raise Exception("UNRESPONSIVE")
+			raise Exception("NET_UNRESPONSIVE")
 		
 		
 
@@ -2607,13 +2613,13 @@ def dedicated_server():
 def client(addr, player="@human"):
 	
 	
-	
+	debug("Client " + player + " starts")
 	s = socket.socket()
 	s.connect((addr, 4562))
 	
 	[colour,port] = s.recv(1024).strip(" \r\n").split(" ")
 	
-	#debug("Colour: " + colour + ", port: " + port)
+	debug("Colour: " + colour + ", port: " + port)
 	
 	s.shutdown(socket.SHUT_RDWR)
 	s.close()
@@ -2623,7 +2629,8 @@ def client(addr, player="@human"):
 	else:
 		p = subprocess.Popen(["python", "qchess.py", "@network:"+addr+":"+port, player])
 	p.wait()
-	return 0# --- server.py --- #
+	return 0
+# --- server.py --- #
 #!/usr/bin/python -u
 
 # Do you know what the -u does? It unbuffers stdin and stdout
@@ -2646,6 +2653,7 @@ sleep_timeout = None
 [game, graphics] = [None, None]
 
 def make_player(name, colour):
+	debug(name)
 	if name[0] == '@':
 		if name[1:] == "human":
 			return HumanPlayer(name, colour)
@@ -2736,17 +2744,7 @@ def main(argv):
 		i += 1
 		arg = argv[i]
 		if arg[0] != '-':
-			p = make_player(arg, colour)
-			if not isinstance(p, Player):
-				sys.stderr.write(sys.argv[0] + " : Fatal error creating " + colour + " player\n")
-				return 100
-			players.append(p)
-			if colour == "white":
-				colour = "black"
-			elif colour == "black":
-				pass
-			else:
-				sys.stderr.write(sys.argv[0] + " : Too many players (max 2)\n")
+			players.append(arg)
 			continue
 
 		# Option parsing goes here
@@ -2831,11 +2829,23 @@ def main(argv):
 				sys.stderr.write("Only a single player may be provided when --server is used\n")
 				return 1
 			if len(players) == 1:
-				return client(server_addr, players[0].name)
+				return client(server_addr, players[0])
 			else:
 				return client(server_addr)
 		
-
+	for i in xrange(len(players)):
+		p = make_player(players[i], colour)
+		if not isinstance(p, Player):
+			sys.stderr.write(sys.argv[0] + " : Fatal error creating " + colour + " player\n")
+			return 100
+		players[i] = p
+		if colour == "white":
+			colour = "black"
+		elif colour == "black":
+			pass
+		else:
+			sys.stderr.write(sys.argv[0] + " : Too many players (max 2)\n")
+		
 	# Create the board
 	
 	# Construct a GameThread! Make it global! Damn the consequences!
@@ -3003,4 +3013,4 @@ if __name__ == "__main__":
 		
 
 # --- main.py --- #
-# EOF - created from make on Friday 21 June  18:15:14 WST 2013
+# EOF - created from make on Monday 24 June  23:55:46 WST 2013

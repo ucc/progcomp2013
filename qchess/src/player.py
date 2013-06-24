@@ -26,6 +26,8 @@ class Player():
 
 	def base_player(self):
 		return self
+
+
 	
 
 
@@ -97,6 +99,7 @@ class FifoPlayer(Player):
 		Player.__init__(self, name, colour)
 		os.mkfifo(self.name+".in")
 		os.mkfifo(self.name+".out")
+			
 
 		try:
 			self.fifo_out = open_fifo(self.name+".out","w", FifoPlayer.timeout)
@@ -106,10 +109,7 @@ class FifoPlayer(Player):
 			self.fifo_out.write("START "+colour+"\n")
 			self.fifo_out.close()
 
-		
-		
-		
-		
+				
 	def update(self, result):
 		sys.stderr.write("update fifo called\n")
 		try:
@@ -155,15 +155,16 @@ class FifoPlayer(Player):
 		try:
 			self.fifo_out = open_fifo(self.name+".out", "w", FifoPlayer.timeout)
 		except:
-			os.remove(self.name+".in")
-			os.remove(self.name+".out")
-			#raise Exception("FIFO_TIMEOUT")
-			
+			pass
 		else:
 			self.fifo_out.write(result + "\n")
 			self.fifo_out.close()
+
+		try:
 			os.remove(self.name+".in")
 			os.remove(self.name+".out")
+		except OSError:
+			pass
 
 # Player that runs from another process
 class ExternalAgent(Player):
@@ -171,6 +172,7 @@ class ExternalAgent(Player):
 
 	def __init__(self, name, colour):
 		Player.__init__(self, name, colour)
+		#raise Exception("waht")
 		self.p = subprocess.Popen(name,bufsize=0,stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True,universal_newlines=True)
 		
 		self.send_message(colour)
@@ -252,6 +254,7 @@ class HumanPlayer(Player):
 	def __init__(self, name, colour):
 		Player.__init__(self, name, colour)
 		
+
 	# Select your preferred account
 	def select(self):
 		if isinstance(graphics, GraphicsThread):
@@ -320,7 +323,8 @@ class InternalAgent(Player):
 
 		self.board = Board(style = "agent")
 
-
+	def argForm(self):
+		return "@internal:"+self.name
 
 	def update(self, result):
 		

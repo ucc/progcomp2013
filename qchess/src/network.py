@@ -149,8 +149,10 @@ class Network():
 		if self.src in ready:
 			s = self.src.recv(1)
 		else:
-			raise Exception("UNRESPONSIVE")
+			raise Exception("NET_UNRESPONSIVE")
 
+
+		debug("Network get_response s = " + str(s))
 
 		while s[len(s)-1] != '\n':
 			# Timeout on each character in the message
@@ -161,7 +163,7 @@ class Network():
 			if self.src in ready:
 				s += self.src.recv(1) 
 			else:
-				raise Exception("UNRESPONSIVE")
+				raise Exception("NET_UNRESPONSIVE")
 
 		
 		return s.strip(" \r\n")
@@ -175,7 +177,7 @@ class Network():
 		if self.src in ready:
 			self.src.send(s + "\n")
 		else:
-			raise Exception("UNRESPONSIVE")
+			raise Exception("NET_UNRESPONSIVE")
 		
 		
 

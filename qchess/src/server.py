@@ -62,13 +62,13 @@ def dedicated_server():
 def client(addr, player="@human"):
 	
 	
-	
+	debug("Client " + player + " starts")
 	s = socket.socket()
 	s.connect((addr, 4562))
 	
 	[colour,port] = s.recv(1024).strip(" \r\n").split(" ")
 	
-	#debug("Colour: " + colour + ", port: " + port)
+	debug("Colour: " + colour + ", port: " + port)
 	
 	s.shutdown(socket.SHUT_RDWR)
 	s.close()
