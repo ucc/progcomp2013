@@ -12,7 +12,7 @@ playerColour = ""; // colour of this player
 pieceChar = {"W" : { "p" : "\u2659", "h" : "\u2658", "b" : "\u2657", "r" : "\u2656", "q" : "\u2655", "k" : "\u2654", "?" : "?"},
 	     "B" : { "p" : "\u265F", "h" : "\u265E", "b" : "\u265D", "r" : "\u265C", "q" : "\u265B", "k" : "\u265A", "?" : "?"}};
 
-emptyHTML = "<!--0-->&nbsp; <big> <bold>&nbsp;</bold> </big> &nbsp;"
+emptyHTML = "<!--0-->"
 
 gameStarted = false;
 canClick = true;
@@ -34,7 +34,7 @@ $(document).ready(function()
 			pieceSelected = "";
 			canClick = false;
 			$.ajax({url : "/cgi-bin/qchess.cgi", data : {r : "force_quit"}, success : function() {}});
-			$.ajax({url : "/cgi-bin/qchess.cgi", data : {r : "start", m : "black"}}).done(function(data) {$(this).update(data)});
+			$.ajax({url : "/cgi-bin/qchess.cgi", data : {r : "start"}}).done(function(data) {$(this).update(data)});
 		
 				
 		}
@@ -355,7 +355,7 @@ $(document).ready(function()
                 	boardHTML += "<tr id=\"y"+y+"\">";
         	        for (var x = 0; x < 8; ++x)
 	                {
-                        	boardHTML += "<td id=\""+x+""+y+"\">"+emptyHTML+"</td>";
+                        	boardHTML += "<td id=\""+x+""+y+"\" width=\"12.5%\" height=\"12.5%\" align=\"center\">"+emptyHTML+"</td>";
                 	}
         	        boardHTML += "</tr>";
 	        }

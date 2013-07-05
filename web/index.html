@@ -4,16 +4,17 @@
 </head>
 
 <body bgcolor=white>
-<h1> Quantum Chess </h1>
+<h1> Schroedinger's Gambit </h1>
 
 <p> <b>Competition: </b> Write an AI to play Quantum Chess. You can enter in <b>any</b> language that supports reading/writing from standard input/output. </p>
 
 <p> Quantum chess is a variant of chess in which the type of a piece changes during play. </p>
 
 <p> The game was invented by Selim Akl, and first implemented by Alice Wismath. You can see their original website <a href="http://research.cs.queensu.ca/Parallel/QuantumChess/QuantumChess.html"/>here</a>. 
+<p> You can play against the current leading AI in our competition <a href="http://progcomp.ucc.asn.au/2013/web/qwebchess/">here</a> </p>
 </p>
 
-<hr><h2> Rules </h2><p> The rules are basically the same as <a href="http://research.cs.queensu.ca/Parallel/QuantumChess/QuantumChess.html"/>the original rules</a>. </p>
+<hr><h2> Game Rules </h2><p> The game rules are basically the same as <a href="http://research.cs.queensu.ca/Parallel/QuantumChess/QuantumChess.html"/>the original rules</a>. </p>
 
 <h3> Differences / Clarifications </h3> 
 <ul>
@@ -23,6 +24,26 @@
 		<ul> <li> (because I'm too lazy to give players a choice) </li> </ul>
 	<li> I might shorten the number of moves before a draw is declared, we'll see. </li> 
 </ul>
+<hr>
+<h2> Competition Rules </h2>
+<p> The competition consists of a number of preliminary rounds, and a final round. See <a href="dates.txt">here</a> for the current schedule. </p>
+<p> Scores accumulate over the rounds. You do not have to enter an earlier round to compete in a later round (but will not receive a score for that round). </p>
+
+<p> Each round will be a round robin. Each AI competing will play each other AI (not itself) as both black and white. </p>
+<p> Points are awarded for each game as follows: </p>
+<ul>
+	<li> Win: 3 points </li>
+	<li> Loss: 1 point </li>
+	<li> Draw: 2 points </li>
+</ul>
+
+<p> <i>Yes</i>, this does effectively mean that you gain more points if there are more opponents. </p>
+
+<p> Scores in the final round will be weighted so that the finals are worth 50% and the combined sum of the preliminary round scores is the remaining 50%. </p>
+
+<p> The Sample AI's will score points as normal, but will not be considered when determining the winner (this is to stop me from giving the prize to myself). Don't worry, they aren't very smart anyway.</p>
+
+
 
 <hr><h2> Getting Started </h2>
 <ol>

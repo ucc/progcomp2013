@@ -1,0 +1,36 @@
+Date: Thu, 28 Mar 2013 12:39:32 +0800 (WST)
+From: Sam Moore <matches@ucc.gu.uwa.edu.au>
+To: progcomp@ucc.asn.au
+Subject: [UCC::ProgComp] Competition schedule
+
+Hello,
+
+Committee has decided to use the 4th Saturday of each month from May until 
+October for progcomp.
+
+So, here is a tentative schedule:
+
+5th April - Bug fixing day / Day for bugging the organiser
+25th May - Round 1
+22nd June - Round 2
+27th July - Round 3
+24th August - Round 4
+21st September - Round 5
+26th October - Finals
+
+We might end up doing fewer rounds, but the finals will be in October.
+
+I will generally try and be around in UCC Clubroom on the days listed, but 
+obviously physical presence is not necessary to compete.
+
+Scores will be weighted so that the finals are worth 50%, 
+and the other rounds are worth equal amounts.
+
+[SZM]
+Vice President 2013
+
+
+_______________________________________________
+Progcomp mailing list
+Progcomp@ucc.gu.uwa.edu.au
+http://lists.ucc.gu.uwa.edu.au/mailman/listinfo/progcomp
